@@ -1,0 +1,65 @@
+/* src/index.css (ya global.css) */
+
+/* BASE STYLES */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #0f0f0f; /* Main dark background */
+    color: #e0e0e0;
+}
+
+/* Sidebar Widths */
+:root {
+    --sidebar-width: 320px;
+    --sidebar-collapsed-width: 80px;
+    --neon-main: #00ffcc;
+    --neon-alert: #ff4444;
+    --bg-dark: #1a1a1a;
+    --bg-darker: #111;
+}
+
+/* Scrollbar for dark theme */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: var(--bg-darker);
+}
+::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 4px;
+}
+
+/* Transition utility for smooth animations */
+.smooth-transition {
+    transition: all 0.3s ease-in-out;
+}
+
+/* MAIN LAYOUT */
+.main-layout-container {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* CONTENT AREA (Jahan Margin badalta hai) */
+.content-area {
+    width: 100%;
+    margin-left: var(--sidebar-width);
+    padding: 30px;
+    transition: margin-left 0.3s ease-in-out;
+}
+.content-area.collapsed {
+    margin-left: var(--sidebar-collapsed-width);
+}
+.content-area.mobile-closed {
+    margin-left: 0;
+}
+
+/* RESPONSIVENESS (Mobile/Tablet) */
+@media (max-width: 992px) {
+    .content-area {
+        margin-left: 0; /* Sidebar hide */
+    }
+}

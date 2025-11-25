@@ -1,0 +1,48 @@
+# ------------------------------------
+# 1. PYTHON / DJANGO FILES
+# ------------------------------------
+# Virtual Environment Folder
+venv/
+.venv/
+env/
+
+# Compiled Python files
+__pycache__/
+*.pyc
+
+# Local Database
+db.sqlite3
+
+# Runtime files
+*.log
+*.sqlite3-journal
+
+# Django specific
+/backend/staticfiles/
+/backend/media/
+/backend/debug.log
+
+# ------------------------------------
+# 2. NODE / REACT / VITE FILES
+# ------------------------------------
+
+# Node Dependencies
+/frontend/node_modules
+/node_modules
+
+# Frontend Build Output (Deployment files)
+/frontend/dist/
+/frontend/build/
+/frontend/out/
+
+# VITE/BUNDLER Cache
+.vite/
+.rollup.cache
+
+# ------------------------------------
+# 3. LOCAL SECRETS (SECURITY)
+# ------------------------------------
+
+# Environment variables (Database passwords, Secret Keys, etc.)
+.env
+.env.local
