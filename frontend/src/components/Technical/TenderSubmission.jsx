@@ -9,7 +9,7 @@ const TenderSubmission = () => {
         date: '', company: '', bid_no: '', item: '', start_date: '', end_date: '', status: 'Draft'
     });
 
-    const API_URL = 'http://127.0.0.1:8000/api/tenders/';
+    const API_URL = 'https://my-crm-backend.onrender.com';
 
     const getAuthHeaders = () => {
         const token = localStorage.getItem('access_token');

@@ -35,8 +35,8 @@ const PaymentStatus = () => {
     remark: "",
   });
 
-  const API_URL = "http://127.0.0.1:8000/api/payments/";
-  const TASK_API_URL = "http://127.0.0.1:8000/api/tasks/";
+  const API_URL = "https://my-crm-backend.onrender.com";
+  const TASK_API_URL = "https://my-crm-backend.onrender.com";
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem("access_token");

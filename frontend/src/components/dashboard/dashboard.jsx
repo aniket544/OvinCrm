@@ -22,11 +22,11 @@ const Dashboard = () => {
     const MONTHLY_TARGET = 1000000;
 
     const API_URLS = {
-        leads: 'http://127.0.0.1:8000/api/leads/',
-        customers: 'http://127.0.0.1:8000/api/customers/',
-        payments: 'http://127.0.0.1:8000/api/payments/',
-        tasks: 'http://127.0.0.1:8000/api/sales-tasks/',
-        tenders: 'http://127.0.0.1:8000/api/tenders/'
+        leads: 'https://my-crm-backend.onrender.com',
+        customers: 'https://my-crm-backend.onrender.com',
+        payments: 'https://my-crm-backend.onrender.com',
+        tasks: 'https://my-crm-backend.onrender.com',
+        tenders: 'https://my-crm-backend.onrender.com'
     };
 
     const getAuthHeaders = () => {

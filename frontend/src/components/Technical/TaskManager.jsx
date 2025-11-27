@@ -16,7 +16,7 @@ const TaskManager = () => {
         status: 'Pending'
     });
 
-    const API_URL = 'http://127.0.0.1:8000/api/tasks/'; // TECHNICAL API URL
+    const API_URL = 'https://my-crm-backend.onrender.com'; // TECHNICAL API URL
 
     const getAuthHeaders = () => {
         const token = localStorage.getItem('access_token');
