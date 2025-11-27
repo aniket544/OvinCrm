@@ -1,5 +1,5 @@
 import React from 'react';
-import Sidebar from '../Sidebar/Sidebar';
+import Sidebar from '../sidebar/Sidebar';
 import Header from '../header/header';
 import { Toaster } from 'react-hot-toast';
 
