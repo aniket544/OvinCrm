@@ -9,7 +9,8 @@ const CustomerData = () => {
         company: '', machine: '', serial: '', warranty: '', service_due: '', status: 'Active'
     });
 
-    const API_URL = 'https://my-crm-backend.onrender.com';
+    const API_URL = 'https://my-crm-backend.onrender.com'; // TECHNICAL API URL
+    // const API_URL = 'http://
 
     const getAuthHeaders = () => {
         const token = localStorage.getItem('access_token');
