@@ -18,7 +18,8 @@ import CustomerData from "./components/Technical/CustomerData";
 import TaskManager from "./components/Technical/TaskManager";
 import SalesTaskManager from "./components/Sales/SalesTaskManager";
 import Login from "./components/login/Login";
-import Register from "./components/register/Register";
+// ✅ Sahi Wala (Agar folder ka naam Capital R se hai)
+import Register from "./components/Register/Register";
 import Dashboard from "./components/dashboard/dashboard";
 import Layout from "./components/Layout/Layout";
 
