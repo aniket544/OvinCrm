@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import * as XLSX from "xlsx";
+// import * as XLSX from "xlsx"; // ❌ Build error rokne ke liye comment kiya hai
 import { toast, Toaster } from "react-hot-toast";
-import { IoLogoWhatsapp } from "react-icons/io5"; 
-import "./payment.css";
+// import { IoLogoWhatsapp } from "react-icons/io5"; // ❌ Missing library
+// import "./payment.css"; // ❌ Missing file
 
 const PaymentStatus = () => {
   const [payments, setPayments] = useState([]);
@@ -35,8 +35,10 @@ const PaymentStatus = () => {
     remark: "",
   });
 
-  const API_URL = "https://my-crm-backend.onrender.com/payments";
-  const TASK_API_URL = "https://my-crm-backend.onrender.com/api/tasks";
+  // ✅ FIXED URLS: Sahi domain + /api/ + trailing slash
+  const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com";
+  const API_URL = `${BASE_API_URL}/api/payments/`; // Fixed
+  const TASK_API_URL = `${BASE_API_URL}/api/tasks/`; // Fixed
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem("access_token");
@@ -251,7 +253,8 @@ const PaymentStatus = () => {
   // === EXPORT TO EXCEL ===
   const handleExport = () => {
     if (payments.length === 0) return toast.error("No data to export!");
-
+    toast.error("Export feature ke liye 'npm install xlsx' karein.");
+    /*
     const exportData = payments.map((p) => ({
       "Company Name": p.company,
       "SO No.": p.so_no || "-",
@@ -281,6 +284,7 @@ const PaymentStatus = () => {
     XLSX.writeFile(wb, `Payment_Status_${today}.xlsx`);
 
     toast.success("Excel exported successfully!");
+    */
   };
 
   // === NEW PAYMENT HANDLERS ===
@@ -868,8 +872,7 @@ const PaymentStatus = () => {
                     flex: 1, // Equal Width
                   }}
                 >
-
-                    <IoLogoWhatsapp  id="whatsapp"/> Create Group
+                  Create Group
                 </button>
 
                 <button
