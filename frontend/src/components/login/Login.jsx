@@ -2,7 +2,10 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom'; 
 import { toast } from 'react-hot-toast';
-import BASE_API_URL from '../../config'; // <-- Imported the central config
+// import BASE_API_URL from '../../config'; // ❌ Path error se bachne ke liye hardcode kar rahe hain
+
+// ✅ CORRECTED AND HARDCODED BASE URL
+const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com"; 
 
 const Login = ({ setIsLoggedIn }) => {
     const [formData, setFormData] = useState({ username: '', password: '' });
@@ -17,8 +20,8 @@ const Login = ({ setIsLoggedIn }) => {
         const toastId = toast.loading('Accessing Mainframe...');
 
         try {
-            // FIX: Using the global BASE_API_URL constant
-            const response = await axios.post(`${BASE_API_URL}token/`, formData); 
+            // FIX: Added '/api/token/' endpoint with correct slash separation.
+            const response = await axios.post(`${BASE_API_URL}/api/token/`, formData); 
             
             localStorage.setItem('access_token', response.data.access);
             localStorage.setItem('refresh_token', response.data.refresh);
@@ -30,7 +33,10 @@ const Login = ({ setIsLoggedIn }) => {
             
         } catch (error) {
             console.error('Error:', error);
-            toast.error('Access Denied! Invalid Credentials.', { 
+            // Django REST Framework error handling
+            const errorMessage = error.response?.data?.detail || 'Access Denied! Invalid Credentials.';
+
+            toast.error(errorMessage, { 
                 id: toastId,
                 style: { border: '1px solid #ff0055', color: '#ff0055' } 
             });
