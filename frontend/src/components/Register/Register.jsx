@@ -16,7 +16,7 @@ const Register = () => {
         const toastId = toast.loading('Creating Identity...');
 
         try {
-            await axios.post('https://my-crm-backend.onrender.com/register/', formData);
+            await axios.post('https://my-crm-backend.onrender.com/register', formData);
             
             toast.success('Identity Created Successfully!', { id: toastId });
             navigate('/login');

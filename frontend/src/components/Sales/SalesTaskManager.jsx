@@ -108,7 +108,7 @@ const SalesTaskManager = () => {
         remarks: '',
     });
 
-    const API_URL = 'https://my-crm-backend.onrender.com/sales-tasks/'; // SALES TASKS API URL
+    const API_URL = 'https://my-crm-backend.onrender.com/sales-tasks'; // SALES TASKS API URL
 
     const getAuthHeaders = () => {
         const token = localStorage.getItem('access_token');
