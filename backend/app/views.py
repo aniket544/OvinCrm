@@ -82,85 +82,7 @@ class TechDataDetail(BaseDetailView):
     serializer_class = TechDataSerializer
     model = TechData
 
-
-# ==========================================
-#       CUSTOM LOGIC (Magic 🪄)
-# ==========================================
-
-# 1. Convert Lead -> Payment (Jab Lead Manager me Convert daboge)
-class ConvertLeadToPayment(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request, pk):
-        try:
-            # Lead dhoondo
-            lead = Lead.objects.get(pk=pk, owner=request.user)
-            
-            if lead.status == 'Converted':
-                return Response({"message": "Already Converted!"}, status=status.HTTP_400_BAD_REQUEST)
-
-            # Status update karo
-            lead.status = 'Converted'
-            lead.save()
-
-            # AB PAYMENT ME ENTRY BANAO (Task me nahi)
-            Payment.objects.create(
-                owner=request.user,
-                company=lead.company,
-                so_no="Pending", 
-                amount=0,
-                advance=0,
-                remaining=0,
-                invoice="Pending",
-                remark=f"Converted from Lead: {lead.name} (Contact: {lead.contact})"
-            )
-
-            return Response({"message": "Moved to Payment Status!"}, status=status.HTTP_200_OK)
-
-        except Lead.DoesNotExist:
-            return Response({"error": "Lead not found"}, status=status.HTTP_404_NOT_FOUND)
-
-
-
-# 2. Go Thru: Payment -> Task (UPDATED FOR NEW FIELDS)
-# 2. Go Through: Payment -> Task (UPDATED)
-class CreateTaskFromPayment(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request, pk):
-        try:
-            payment = Payment.objects.get(pk=pk, owner=request.user)
-            data = request.data 
-            
-            # Task Name format karo
-            task_title = data.get('task_name', 'Auto Created Task')
-            
-            # Task Manager me entry banao with SPECIFIC FIELDS
-            Task.objects.create(
-                owner=request.user,
-                
-                # --- FIX: Date field ab model ka 'default=date.today' use karega ---
-                # date=None hata diya hai
-                
-                company_name=payment.company,
-                client_name=data.get('client_name', ''),
-                client_id=data.get('client_id', ''),
-                gem_id=data.get('gem_id', ''),
-                gem_password=data.get('gem_password', ''),
-                
-                task_name=task_title,
-                priority=data.get('priority', 'Medium'), 
-                status="Pending"
-            )
-
-            return Response({"message": "Sent to Task Manager!"}, status=status.HTTP_200_OK)
-
-        except Payment.DoesNotExist:
-            return Response({"error": "Payment record not found"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            # Ye generic error handling hai
-            return Response({"error": "Task creation failed: Database conflict."}, status=status.HTTP_400_BAD_REQUEST)
-# 1. Ye nayi View class add karo (Table dikhane ke liye)
+# 7. Sales Tasks (Ye Missing tha, add kar diya)
 class SalesTaskListCreate(BaseListCreateView):
     serializer_class = SalesTaskSerializer
     model = SalesTask
@@ -168,8 +90,12 @@ class SalesTaskDetail(BaseDetailView):
     serializer_class = SalesTaskSerializer
     model = SalesTask
 
-## backend/app/views.py (Conversion Logic)
 
+# ==========================================
+#       CUSTOM LOGIC (Magic 🪄)
+# ==========================================
+
+# 1. Convert Lead -> Payment (FIXED: Duplicate hata diya, best logic rakha)
 class ConvertLeadToPayment(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -185,14 +111,15 @@ class ConvertLeadToPayment(APIView):
             lead.status = 'Converted'
             lead.save()
 
-            # --- PAYMENT RECORD CREATION (Uses data from Frontend Modal) ---
+            # --- PAYMENT RECORD CREATION ---
             Payment.objects.create(
                 owner=request.user,
                 company=lead.company,
+                # Frontend se data lo, agar nahi hai to default use karo
                 so_no=data.get('so_no', 'N/A'),
                 amount=data.get('amount', 0),
                 advance=data.get('advance', 0),
-                remaining=data.get('remaining', 0), # Frontend se calculated value
+                remaining=data.get('remaining', 0),
                 invoice=data.get('invoice', 'Pending'),
                 remark=data.get('remark', f"Converted from Lead: {lead.name}"),
             )
@@ -202,17 +129,48 @@ class ConvertLeadToPayment(APIView):
         except Lead.DoesNotExist:
             return Response({"error": "Lead not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-             return Response({"error": f"Database error during creation: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+             return Response({"error": f"Database error: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # ... purane views ...
 
-# 3. Lead -> Sales Task (Follow Up ke liye) - NEW
+# 2. Go Through: Payment -> Task (System Task)
+class CreateTaskFromPayment(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            payment = Payment.objects.get(pk=pk, owner=request.user)
+            data = request.data 
+            
+            task_title = data.get('task_name', 'Auto Created Task')
+            
+            Task.objects.create(
+                owner=request.user,
+                company_name=payment.company,
+                client_name=data.get('client_name', ''),
+                client_id=data.get('client_id', ''),
+                gem_id=data.get('gem_id', ''),
+                gem_password=data.get('gem_password', ''),
+                task_name=task_title,
+                priority=data.get('priority', 'Medium'), 
+                status="Pending"
+            )
+
+            return Response({"message": "Sent to Task Manager!"}, status=status.HTTP_200_OK)
+
+        except Payment.DoesNotExist:
+            return Response({"error": "Payment record not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": "Task creation failed."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# 3. Lead -> Sales Task (Follow Up ke liye) - FULLY FIXED 🛠️
 class MoveLeadToSalesTask(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, pk):
         try:
             lead = Lead.objects.get(pk=pk, owner=request.user)
+            data = request.data  # <--- Ye line Missing thi!
             
             # Sales Task me entry banao
             SalesTask.objects.create(
@@ -221,12 +179,17 @@ class MoveLeadToSalesTask(APIView):
                 lead_name=lead.name,
                 company=lead.company,
                 contact=lead.contact,
-                task_type="Call", # Default starting task
-                status="Pending",
-                remarks=f"Moved from Leads. Purpose: {lead.purpose}"
+                
+                # AB FRONTEND KA DATA USE HOGA:
+                task_type="Call", 
+                next_follow_up=data.get('next_follow_up'),  # <--- Important
+                priority=data.get('priority', 'Medium'),    # <--- Important
+                remarks=data.get('remarks', f"Moved from Leads. Purpose: {lead.purpose}"), # <--- Important
+                
+                status="Pending"
             )
             
-            # Lead ka status update karo taaki pata chale uspe kaam chal raha hai
+            # Lead ka status update karo
             lead.status = 'Interested' 
             lead.save()
 
@@ -234,9 +197,3 @@ class MoveLeadToSalesTask(APIView):
 
         except Lead.DoesNotExist:
             return Response({"error": "Lead not found"}, status=status.HTTP_404_NOT_FOUND)
-
-
-
-
-
-
