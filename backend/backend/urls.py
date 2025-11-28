@@ -3,5 +3,6 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include('app.urls')),  # 'crm_app' ki jagah apne app ka asli naam likhio
-]
+    # Ye line zaroori hai taaki frontend '/api/leads/' call kar sake
+    path('api/', include('app.urls')), 
+]   
