@@ -1,6 +1,5 @@
-"""
-Django settings for backend project.
-"""
+# Django settings for backend project.
+
 from pathlib import Path
 from datetime import timedelta
 import dj_database_url
@@ -9,13 +8,13 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SECURITY WARNING: keep the secret key used in production secret!
+# --- Security & Debug ---
 SECRET_KEY = 'django-insecure-5%#o^xyi5=5e3y(o6*$zil6e(bnk6ehixxhm)s#$&-q6uv+!kk'
 
-# Production pe False rakhte hain, par agar error dekhna ho to True kar lena
-DEBUG = False
+DEBUG = False # Production mein False hona chahiye
 
-ALLOWED_HOSTS = ['*']
+# FIX 1: Allow any host in production (Render default)
+ALLOWED_HOSTS = ['*'] 
 
 # Application definition
 INSTALLED_APPS = [
@@ -36,10 +35,13 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',       # <--- YE TOP PE HONA CHAHIYE
+    # FIX 2: Whitenoise for static files
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # <--- YE ADD KIYA HAI STATIC FILES KE LIYE
+    'whitenoise.middleware.WhiteNoiseMiddleware', 
     'django.contrib.sessions.middleware.SessionMiddleware',
+    
+    # FIX 3: CORS middleware upar hona chahiye
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -66,7 +68,8 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
-# Database
+
+# Database (dj-database-url handles Render connection)
 DATABASES = {
     'default': dj_database_url.config(
         default='sqlite:///db.sqlite3',
@@ -74,7 +77,8 @@ DATABASES = {
     )
 }
 
-# Password validation
+
+# Password validation (same)
 AUTH_PASSWORD_VALIDATORS = [
     { 'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator', },
     { 'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator', },
@@ -82,20 +86,21 @@ AUTH_PASSWORD_VALIDATORS = [
     { 'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator', },
 ]
 
-# Internationalization
+
+# Internationalization (same)
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'Asia/Kolkata'
 USE_I18N = True
 USE_TZ = True
 
-# Static files (CSS/JS)
-STATIC_URL = 'static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Static files (for production use)
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- DRF & JWT Config ---
+# --- DRF & JWT Config (same) ---
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -107,11 +112,11 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
 }
 
-# --- CORS Config (FINAL FIX) ---
-CORS_ALLOW_ALL_ORIGINS = True  # Sab allow kar do filhal
 
-# Ye frontend URL ko trust karne ke liye zaroori hai
-CSRF_TRUSTED_ORIGINS = [
-    "https://my-crm-frontend.onrender.com",
-    "https://my-crm-backend-a5q4.onrender.com",
-]
+# --- FINAL CORS CONFIG ---
+# FIX 4: Sabse zaroori fix. Render ka frontend aur tumhare dost ka laptop dono access kar payenge.
+CORS_ALLOW_ALL_ORIGINS = True
+# CORS_ALLOWED_ORIGINS list ki zaroorat nahi agar ALL_ORIGINS True hai
+
+# Default primary key field type (same)
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
