@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import * as XLSX from 'xlsx';
+// import * as XLSX from 'xlsx'; // ❌ Build error rokne ke liye comment kiya hai
 import { toast } from 'react-hot-toast';
 
 // --- MODAL Component (Internal) ---
-// Separate component for clarity, uses props from SalesTaskManager
 const FollowUpModal = ({ isOpen, onClose, task, updateTask, followUpData, setFollowUpData, styles }) => {
     if (!isOpen || !task) return null;
 
@@ -108,10 +107,15 @@ const SalesTaskManager = () => {
         remarks: '',
     });
 
-    const API_URL = 'https://my-crm-backend.onrender.com/sales-tasks'; // SALES TASKS API URL
+    // ✅ FIXED URLS: Sahi domain + /api/ + trailing slash
+    const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com";
+    const API_URL = `${BASE_API_URL}/api/sales-tasks/`;
 
     const getAuthHeaders = () => {
         const token = localStorage.getItem('access_token');
+        if (!token) {
+            throw new Error("Unauthorized: User not logged in."); 
+        }
         return { headers: { Authorization: `Bearer ${token}` } };
     };
 
@@ -119,20 +123,27 @@ const SalesTaskManager = () => {
 
     const fetchTasks = async () => {
         try {
-            const response = await axios.get(API_URL, getAuthHeaders());
-            // Sorting Logic (for high priority to be visible)
+            const headers = getAuthHeaders();
+            const response = await axios.get(API_URL, headers);
+            // Sorting Logic
             const sortedTasks = response.data.sort((a, b) => {
                 const priorityOrder = { 'High': 3, 'Medium': 2, 'Low': 1 };
                 return priorityOrder[b.priority] - priorityOrder[a.priority];
             });
             setTasks(sortedTasks);
-        } catch (error) { console.error("Error fetching tasks:", error); }
+        } catch (error) { 
+             const message = error.message.includes("Unauthorized") || error.response?.status === 401
+                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
+                : "Tasks fetch karne mein error";
+            toast.error(message);
+        }
     };
 
     const handleSave = async () => {
         if (!newTask.lead_name) { toast.error("Name Required!"); return; }
         try {
-            const response = await axios.post(API_URL, newTask, getAuthHeaders());
+            const headers = getAuthHeaders();
+            const response = await axios.post(API_URL, newTask, headers);
             // Add the new task and re-sort
             const newTasks = [...tasks, response.data];
             const sortedTasks = newTasks.sort((a, b) => {
@@ -143,23 +154,26 @@ const SalesTaskManager = () => {
 
             setNewTask({ date: '', lead_name: '', company: '', contact: '', task_type: 'Call', next_follow_up: '', status: 'Pending', remarks: '', follow_up_count: 0, priority: 'Medium' });
             toast.success("Task Assigned!", { icon: '📌' });
-        } catch (error) { toast.error("Error saving"); }
+        } catch (error) { 
+            const message = error.message.includes("Unauthorized") || error.response?.status === 401
+                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
+                : "Error saving task";
+            toast.error(message);
+        }
     };
 
-    // --- NEW: Function to open Modal ---
+    // --- Modal Handlers ---
     const handleFollowUpClick = (task) => {
         setCurrentTask(task);
-        // Initialize modal form data with current task values
         setFollowUpData({
             next_follow_up: task.next_follow_up || '',
             status: task.status,
             priority: task.priority,
-            remarks: task.remarks, // Use current remarks as starting point
+            remarks: task.remarks,
         });
         setIsModalOpen(true);
     };
 
-    // --- NEW: Function to handle Modal Save ---
     const handleFollowUpUpdate = async () => {
         if (!currentTask) return;
 
@@ -173,89 +187,95 @@ const SalesTaskManager = () => {
         };
 
         try {
-            await axios.patch(`${API_URL}${currentTask.id}/`, payload, getAuthHeaders());
+            const headers = getAuthHeaders();
+            await axios.patch(`${API_URL}${currentTask.id}/`, payload, headers);
             toast.success(`Follow-up Updated! Count: ${newCount}`);
             
-            // Re-fetch to get the newest sorted list
             fetchTasks();
             setIsModalOpen(false);
-            setCurrentTask(null); // Clear task data
+            setCurrentTask(null);
         } catch (error) {
-            toast.error("Error updating follow-up.");
+            const message = error.message.includes("Unauthorized") || error.response?.status === 401
+                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
+                : "Error updating follow-up.";
+            toast.error(message);
             console.error("Error updating follow-up:", error);
         }
     };
-    // ------------------------------------
 
-//   import { toast } from "react-hot-toast";
+    const handleDelete = async (id) => {
+        toast(
+            (t) => (
+                <div style={{ padding: "10px" }}>
+                    <p style={{ marginBottom: "10px", color: "#fff" }}>Are you sure you want to delete?</p>
+                    
+                    <button
+                        style={{
+                            background: "red",
+                            color: "white",
+                            padding: "5px 10px",
+                            borderRadius: "5px",
+                            marginRight: "10px",
+                            border: "none",
+                            cursor: "pointer"
+                        }}
+                        onClick={async () => {
+                            try {
+                                const headers = getAuthHeaders();
+                                await axios.delete(`${API_URL}${id}/`, headers);
+                                setTasks(tasks.filter((t) => t.id !== id));
+                                toast.success("Deleted Successfully! 🗑️");
+                            } catch (error) {
+                                const message = error.message.includes("Unauthorized") || error.response?.status === 401
+                                    ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
+                                    : "Delete failed";
+                                toast.error(message);
+                            }
+                            toast.dismiss(t.id);
+                        }}
+                    >
+                        Yes
+                    </button>
 
-const handleDelete = async (id) => {
-    toast(
-        (t) => (
-            <div style={{ padding: "10px" }}>
-                <p style={{ marginBottom: "10px", color: "#fff" }}>Are you sure you want to delete?</p>
-                
-                <button
-                    style={{
-                        background: "red",
-                        color: "white",
-                        padding: "5px 10px",
-                        borderRadius: "5px",
-                        marginRight: "10px",
-                        border: "none",
-                        cursor: "pointer"
-                    }}
-                    onClick={async () => {
-                        try {
-                            await axios.delete(`${API_URL}${id}/`, getAuthHeaders());
-                            setTasks(tasks.filter((t) => t.id !== id));
-                            toast.success("Deleted Successfully! 🗑️");
-                        } catch (error) {
-                            toast.error("Delete failed");
-                        }
-                        toast.dismiss(t.id); // close popup
-                    }}
-                >
-                    Yes
-                </button>
-
-                <button
-                    style={{
-                        background: "#333",
-                        color: "white",
-                        padding: "5px 10px",
-                        borderRadius: "5px",
-                        border: "none",
-                        cursor: "pointer"
-                    }}
-                    onClick={() => toast.dismiss(t.id)}
-                >
-                    No
-                </button>
-            </div>
-        ),
-        {
-            duration: 5000,
-            style: {
-                background: "#1a1a1a",
-                color: "#fff",
-                border: "1px solid #333"
-            },
-        }
-    );
-};
-
+                    <button
+                        style={{
+                            background: "#333",
+                            color: "white",
+                            padding: "5px 10px",
+                            borderRadius: "5px",
+                            border: "none",
+                            cursor: "pointer"
+                        }}
+                        onClick={() => toast.dismiss(t.id)}
+                    >
+                        No
+                    </button>
+                </div>
+            ),
+            {
+                duration: 5000,
+                style: {
+                    background: "#1a1a1a",
+                    color: "#fff",
+                    border: "1px solid #333"
+                },
+            }
+        );
+    };
 
     const handleInputChange = (e) => setNewTask({ ...newTask, [e.target.name]: e.target.value });
 
+    // ❌ Export Disabled Temporarily
     const handleExport = () => {
+        toast.error("Export feature ke liye 'npm install xlsx' run karein.");
+        /*
         const ws = XLSX.utils.json_to_sheet(tasks);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "SalesTasks");
         XLSX.writeFile(wb, "Sales_Tasks.xlsx");
+        */
     };
 
-    // Helper function for Priority styling
     const getPriorityStyle = (priority) => {
         switch (priority) {
             case 'High': return { color: '#ff4444', border: '1px solid #ff4444', background: 'rgba(255, 68, 68, 0.1)' };
@@ -265,14 +285,12 @@ const handleDelete = async (id) => {
         }
     };
     
-    // Helper function for Status styling (Pending = Yellowish-Orange)
     const getStatusStyle = (status) => {
         if (status === 'Pending') { return { background: '#ffbb33', color: '#000', fontWeight: 'bold' }; } 
         else if (status === 'Done') { return { background: '#00ffcc', color: '#000', fontWeight: 'bold' }; }
         return { background: '#444', color: '#fff' };
     };
 
-    // Helper function for Row Color (if due date is near/past)
     const getStatusColor = (dueDate, status) => {
         if (status === 'Done') return { backgroundColor: '#1f2a28' }; // Light green for Done
         if (!dueDate) return {};
@@ -291,7 +309,6 @@ const handleDelete = async (id) => {
         return {};
     }
 
-    // --- STYLES ---
     const styles = {
         container: { background: '#1a1a1a', borderRadius: '15px', padding: '25px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', border: '1px solid #333', color: '#e0e0e0', minHeight: '80vh' },
         header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #333', paddingBottom: '15px' },
@@ -381,7 +398,7 @@ const handleDelete = async (id) => {
                                 </td>
                                 <td style={{...styles.td, textAlign: 'center'}}>
                                     <span style={styles.countBadge}>{t.follow_up_count}</span>
-                                    {/* Updated: Button opens modal */}
+                                    {/* Button opens modal */}
                                     <button style={styles.plusBtn} onClick={() => handleFollowUpClick(t)} title="Add Follow-up">+</button>
                                 </td>
                                 <td style={styles.td}>{t.remarks}</td>
@@ -418,4 +435,4 @@ const handleDelete = async (id) => {
     );
 };
 
-export default SalesTaskManager;    
+export default SalesTaskManager;
