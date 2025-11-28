@@ -5,6 +5,8 @@ import {
 } from 'recharts';
 
 const Dashboard = () => {
+    // ✅ BASE URL DEFINED HERE
+    const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com";
 
     const [stats, setStats] = useState({
         totalLeads: 0,
@@ -21,12 +23,13 @@ const Dashboard = () => {
     const username = localStorage.getItem("username") || "Admin";
     const MONTHLY_TARGET = 1000000;
 
+    // ✅ FIXED: URLs with correct API endpoints and server link
     const API_URLS = {
-        leads: 'https://my-crm-backend.onrender.com',
-        customers: 'https://my-crm-backend.onrender.com',
-        payments: 'https://my-crm-backend.onrender.com',
-        tasks: 'https://my-crm-backend.onrender.com',
-        tenders: 'https://my-crm-backend.onrender.com'
+        leads: `${BASE_API_URL}/api/leads/`,
+        customers: `${BASE_API_URL}/api/customers/`,
+        payments: `${BASE_API_URL}/api/payments/`,
+        tasks: `${BASE_API_URL}/api/tasks/`,
+        tenders: `${BASE_API_URL}/api/tenders/`
     };
 
     const getAuthHeaders = () => {
@@ -37,6 +40,7 @@ const Dashboard = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
+                // Sahi endpoints par request jayegi
                 const [leads, customers, payments, tasks, tenders] = await Promise.all([
                     axios.get(API_URLS.leads, getAuthHeaders()),
                     axios.get(API_URLS.customers, getAuthHeaders()),
@@ -49,6 +53,7 @@ const Dashboard = () => {
                 const paymentsData = payments.data;
                 const tasksData = tasks.data;
                 const tendersData = tenders.data;
+                const customersData = customers.data; // Customers data retrieve
 
                 const today = new Date().toISOString().split('T')[0];
                 const nextWeek = new Date();
@@ -84,7 +89,7 @@ const Dashboard = () => {
 
                 setStats({
                     totalLeads: leadsData.length,
-                    totalCustomers: customers.data.length,
+                    totalCustomers: customersData.length, // Using retrieved data
                     totalRevenue,
                     pendingTasks,
                     leadsData: pieData,
@@ -95,7 +100,7 @@ const Dashboard = () => {
                 });
 
             } catch (error) {
-                console.error("Dashboard Load Error:", error.message);
+                console.error("Dashboard Load Error:", error);
             }
         };
 
@@ -275,7 +280,6 @@ const Dashboard = () => {
                 <div style={{ ...styles.listBox, height: '350px' }}>
                     <div style={{ marginBottom: '10px', color: '#0088FE', fontWeight: 'bold' }}>Lead Status Breakdown</div>
 
-                    {/* 🔥 FIXED HEIGHT to Prevent Chart Error */}
                     <ResponsiveContainer width="100%" height={250}>
                         <PieChart>
                             <Pie
