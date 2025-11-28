@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import * as XLSX from 'xlsx';
-import { toast, Toaster } from 'react-hot-toast';   // Toaster added
+// import * as XLSX from 'xlsx'; // ❌ Build error rokne ke liye comment kiya hai
+import { toast, Toaster } from 'react-hot-toast'; 
 
 const CustomerData = () => {
     const [data, setData] = useState([]);
@@ -9,10 +9,16 @@ const CustomerData = () => {
         company: '', machine: '', serial: '', warranty: '', service_due: '', status: 'Active'
     });
 
-    const API_URL = 'https://my-crm-backend.onrender.com/tech-data';
+    // ✅ FIXED URL: Correct domain, added /api/customers/, trailing slash
+    const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com";
+    const API_URL = `${BASE_API_URL}/api/customers/`;
 
+    // FIX 2: Check for token and throw error if missing
     const getAuthHeaders = () => {
         const token = localStorage.getItem('access_token');
+        if (!token) {
+            throw new Error("Unauthorized: User not logged in."); 
+        }
         return { headers: { Authorization: `Bearer ${token}` } };
     };
 
@@ -22,38 +28,50 @@ const CustomerData = () => {
 
     const fetchData = async () => {
         try {
-            const response = await axios.get(API_URL, getAuthHeaders());
+            const headers = getAuthHeaders();
+            const response = await axios.get(API_URL, headers);
             setData(response.data);
         } catch (error) {
             console.error("Fetch error:", error);
-            toast.error("Failed to load data");
+            const message = error.message.includes("Unauthorized") || error.response?.status === 401
+                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
+                : "डेटा लोड करने में विफल। (Failed to load data.)";
+            toast.error(message);
         }
     };
 
     const handleSave = async () => {
         if (!newData.company.trim()) {
-            toast.error("Company Name Required!");
+            toast.error("Company ka naam zaroori hai");
             return;
         }
         try {
-            const response = await axios.post(API_URL, newData, getAuthHeaders());
+            const headers = getAuthHeaders();
+            const response = await axios.post(API_URL, newData, headers);
             setData(prev => [...prev, response.data]);
             setNewData({ company: '', machine: '', serial: '', warranty: '', service_due: '', status: 'Active' });
-            toast.success("Technical Data Saved!");
+            toast.success("Technical Data save ho gaya!");
         } catch (error) {
-            console.error(error.response?.data);
-            toast.error("Error saving data");
+            console.error("Save error:", error.response?.data);
+            const message = error.message.includes("Unauthorized") || error.response?.status === 401
+                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
+                : "डेटा सेव करने में एरर। (Error saving data.)";
+            toast.error(message);
         }
     };
 
     // DELETE WITH CONFIRMATION
     const confirmDelete = async (id) => {
         try {
-            await axios.delete(`${API_URL}${id}/`, getAuthHeaders());
+            const headers = getAuthHeaders();
+            await axios.delete(`${API_URL}${id}/`, headers);
             setData(prev => prev.filter(d => d.id !== id));
-            toast.success("Record Deleted!", { icon: 'Success' });
+            toast.success("Record delete ho gaya!", { icon: 'Success' });
         } catch (error) {
-            toast.error("Delete failed!");
+            const message = error.message.includes("Unauthorized") || error.response?.status === 401
+                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
+                : "डिलीट करने में विफल। (Delete failed.)";
+            toast.error(message);
         }
     };
 
@@ -61,7 +79,7 @@ const CustomerData = () => {
         toast((t) => (
             <div style={{ padding: '15px', textAlign: 'center' }}>
                 <p style={{ margin: '0 0 15px', color: '#fff', fontWeight: 'bold' }}>
-                    Permanently delete this record?
+                    Is record ko hamesha ke liye delete karna hai?
                 </p>
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
                     <button
@@ -79,7 +97,7 @@ const CustomerData = () => {
                             cursor: 'pointer'
                         }}
                     >
-                        Yes, Delete
+                        Haan, delete karo 
                     </button>
                     <button
                         onClick={() => toast.dismiss(t.id)}
@@ -92,7 +110,7 @@ const CustomerData = () => {
                             cursor: 'pointer'
                         }}
                     >
-                        Cancel
+                        Cancel karo 
                     </button>
                 </div>
             </div>
@@ -106,12 +124,15 @@ const CustomerData = () => {
         setNewData({ ...newData, [e.target.name]: e.target.value });
     };
 
+    // ❌ Export Disabled Temporarily (Build fix karne ke liye)
     const handleExport = () => {
         if (data.length === 0) {
-            toast.error("No data to export!");
+            toast.error("Export ke liye data nahi hai!");
             return;
         }
 
+        toast.error("Export feature ke liye 'npm install xlsx' run karein.");
+        /*
         const exportData = data.map(d => ({
             'Company': d.company,
             'Machine': d.machine,
@@ -129,6 +150,7 @@ const CustomerData = () => {
         XLSX.writeFile(wb, "Technical_Customer_Data.xlsx");
 
         toast.success("Excel exported!");
+        */
     };
 
     const styles = {
@@ -203,7 +225,7 @@ const CustomerData = () => {
                                             fontSize: '12px',
                                             fontWeight: 'bold',
                                             background: d.status === 'Active' ? '#28a745' : 
-                                                       d.status === 'Expired' ? '#ff4444' : '#ffbb33',
+                                                         d.status === 'Expired' ? '#ff4444' : '#ffbb33',
                                             color: '#fff'
                                         }}>
                                             {d.status}
@@ -221,7 +243,8 @@ const CustomerData = () => {
                 </div>
             </div>
 
-            <style jsx>{`
+            {/* FIX 1: Removed redundant 'jsx' prop that caused React warning. */}
+            <style>{`
                 input[type="date"]::-webkit-calendar-picker-indicator {
                     filter: invert(1);
                     cursor: pointer;

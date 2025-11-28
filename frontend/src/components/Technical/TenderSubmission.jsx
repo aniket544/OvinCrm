@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import * as XLSX from 'xlsx';
-import { toast, Toaster } from 'react-hot-toast';   // Toaster added
+// import * as XLSX from 'xlsx'; // ❌ Build error rokne ke liye comment kiya hai
+import { toast, Toaster } from 'react-hot-toast'; 
 
 const TenderSubmission = () => {
     const [tenders, setTenders] = useState([]);
@@ -9,10 +9,16 @@ const TenderSubmission = () => {
         date: '', company: '', bid_no: '', item: '', start_date: '', end_date: '', status: 'Draft'
     });
 
-    const API_URL = 'https://my-crm-backend.onrender.com/tenders'; // TENDERS API URL
+    // ✅ FIXED URLS: Correct domain, added /api/, and trailing slash
+    const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com";
+    const API_URL = `${BASE_API_URL}/api/tenders/`; 
 
+    // FIX: Check for token and throw error if missing
     const getAuthHeaders = () => {
         const token = localStorage.getItem('access_token');
+        if (!token) {
+            throw new Error("Unauthorized: User not logged in."); 
+        }
         return { headers: { Authorization: `Bearer ${token}` } };
     };
 
@@ -22,11 +28,15 @@ const TenderSubmission = () => {
 
     const fetchTenders = async () => {
         try {
-            const response = await axios.get(API_URL, getAuthHeaders());
+            const headers = getAuthHeaders();
+            const response = await axios.get(API_URL, headers);
             setTenders(response.data);
         } catch (error) {
             console.error("Fetch error:", error);
-            toast.error("Failed to load tenders");
+            const message = error.message.includes("Unauthorized") || error.response?.status === 401
+                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
+                : "Tenders load karne mein fail ho gaya। (Failed to load tenders.)";
+            toast.error(message);
         }
     };
 
@@ -37,24 +47,32 @@ const TenderSubmission = () => {
         }
 
         try {
-            const response = await axios.post(API_URL, newTender, getAuthHeaders());
+            const headers = getAuthHeaders();
+            const response = await axios.post(API_URL, newTender, headers);
             setTenders(prev => [...prev, response.data]);
             setNewTender({ date: '', company: '', bid_no: '', item: '', start_date: '', end_date: '', status: 'Draft' });
             toast.success("Tender Saved Successfully!", { icon: 'Success', style: { background: '#333', color: '#00ffcc' } });
         } catch (error) {
             console.error(error.response?.data);
-            toast.error("Error saving tender!");
+            const message = error.message.includes("Unauthorized") || error.response?.status === 401
+                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
+                : "Tender save karne mein error!";
+            toast.error(message);
         }
     };
 
     // DELETE WITH CONFIRMATION
     const confirmDelete = async (id) => {
         try {
-            await axios.delete(`${API_URL}${id}/`, getAuthHeaders());
+            const headers = getAuthHeaders();
+            await axios.delete(`${API_URL}${id}/`, headers);
             setTenders(prev => prev.filter(t => t.id !== id));
             toast.success("Tender Deleted!", { icon: 'Success' });
         } catch (error) {
-            toast.error("Failed to delete tender");
+            const message = error.message.includes("Unauthorized") || error.response?.status === 401
+                ? " Please log in first" 
+                : "Delete karne mein fail ho gaya";
+            toast.error(message);
         }
     };
 
@@ -62,7 +80,7 @@ const TenderSubmission = () => {
         toast((t) => (
             <div style={{ padding: '15px', textAlign: 'center', fontFamily: 'system-ui' }}>
                 <p style={{ margin: '0 0 15px', color: '#fff', fontWeight: 'bold', fontSize: '15px' }}>
-                    Permanently delete this tender?
+                    Is tender ko hamesha ke liye delete karna hai?
                 </p>
                 <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
                     <button
@@ -80,7 +98,7 @@ const TenderSubmission = () => {
                             cursor: 'pointer'
                         }}
                     >
-                        Yes, Delete
+                        Haan, delete karo
                     </button>
                     <button
                         onClick={() => toast.dismiss(t.id)}
@@ -93,7 +111,7 @@ const TenderSubmission = () => {
                             cursor: 'pointer'
                         }}
                     >
-                        Cancel
+                        Cancel karo
                     </button>
                 </div>
             </div>
@@ -107,12 +125,15 @@ const TenderSubmission = () => {
         setNewTender({ ...newTender, [e.target.name]: e.target.value });
     };
 
+    // ❌ Export Disabled Temporarily (XLSX error se bachne ke liye)
     const handleExport = () => {
         if (tenders.length === 0) {
-            toast.error("No tenders to export!");
+            toast.error("Export ke liye tenders nahi hain!");
             return;
         }
 
+        toast.error("Export feature ke liye 'npm install xlsx' run karein.");
+        /*
         const exportData = tenders.map(t => ({
             'Date': t.date || '-',
             'Company': t.company || '-',
@@ -132,6 +153,7 @@ const TenderSubmission = () => {
         XLSX.writeFile(wb, `Tender_List_${today}.xlsx`);
 
         toast.success("Excel exported successfully!");
+        */
     };
 
     // STYLES
@@ -149,6 +171,23 @@ const TenderSubmission = () => {
         select: { width: '100%', background: '#111', border: '1px solid #444', color: '#fff', padding: '10px', borderRadius: '6px', outline: 'none', fontSize: '14px' },
         deleteBtn: { background: 'transparent', border: '1.5px solid #ff4444', color: '#ff4444', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', transition: 'all 0.3s' }
     };
+
+    // Helper function for row styling based on end_date
+    const getTenderStatusColor = (endDate, status) => {
+        if (status === 'Won') return { backgroundColor: 'rgba(39, 174, 96, 0.2)', borderLeft: '3px solid #28a745' };
+        if (status === 'Lost') return { backgroundColor: 'rgba(255, 68, 68, 0.2)', borderLeft: '3px solid #ff4444' };
+        if (!endDate) return {};
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const end = new Date(endDate);
+        end.setHours(0, 0, 0, 0);
+
+        if (end < today) {
+            return { backgroundColor: 'rgba(255, 165, 0, 0.2)', borderLeft: '3px solid #ffbb33' }; // Expired/Passed
+        }
+        return {};
+    }
 
     return (
         <>
@@ -205,7 +244,7 @@ const TenderSubmission = () => {
 
                             {/* Existing Tenders */}
                             {tenders.map((t) => (
-                                <tr key={t.id} className="hover-row">
+                                <tr key={t.id} className="hover-row" style={getTenderStatusColor(t.end_date, t.status)}>
                                     <td style={styles.td}>{t.date || '-'}</td>
                                     <td style={{...styles.td, color: '#fff', fontWeight: 'bold'}}>{t.company}</td>
                                     <td style={{...styles.td, color: '#00ffcc', fontWeight: 'bold'}}>{t.bid_no}</td>
@@ -219,8 +258,8 @@ const TenderSubmission = () => {
                                             fontSize: '12px',
                                             fontWeight: 'bold',
                                             background: t.status === 'Won' ? '#28a745' : 
-                                                       t.status === 'Lost' ? '#ff4444' : 
-                                                       t.status === 'Submitted' ? '#007bff' : '#666',
+                                                            t.status === 'Lost' ? '#ff4444' : 
+                                                            t.status === 'Submitted' ? '#007bff' : '#666',
                                             color: '#fff'
                                         }}>
                                             {t.status}
