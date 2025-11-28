@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import * as XLSX from 'xlsx';
+// import * as XLSX from 'xlsx'; // ❌ Filhal ke liye comment kiya hai (Build fix karne ke liye)
 import { toast } from 'react-hot-toast';
+// import BASE_API_URL from '../../config'; // ❌ Config path error de raha tha, isliye direct URL use karenge
 
 const CustomerData = () => {
     const [data, setData] = useState([]);
@@ -9,8 +10,8 @@ const CustomerData = () => {
         company: '', machine: '', serial: '', warranty: '', service_due: '', status: 'Active'
     });
 
-    const API_URL = 'https://my-crm-backend.onrender.com'; // TECHNICAL API URL
-    // const API_URL = 'http://
+    // ✅ DIRECT URL (Taaki Config file ka jhanjhat na rahe)
+    const API_URL = 'https://my-crm-backend-a5q4.onrender.com/api/customers/';
 
     const getAuthHeaders = () => {
         const token = localStorage.getItem('access_token');
@@ -26,7 +27,7 @@ const CustomerData = () => {
             const response = await axios.get(API_URL, getAuthHeaders());
             setData(response.data);
         } catch (error) {
-            console.error(error);
+            console.error("Fetch Error:", error);
         }
     };
 
@@ -41,24 +42,22 @@ const CustomerData = () => {
             setNewData({ company: '', machine: '', serial: '', warranty: '', service_due: '', status: 'Active' });
             toast.success("Technical Data Saved!");
         } catch (error) {
+            console.error("Save Error:", error);
             toast.error("Error saving data");
         }
     };
 
-    // --- DELETE LOGIC (UPDATED WITH TOAST CONFIRMATION) ---
-    
-    // 1. Final API call
     const confirmDelete = async (id) => {
         try {
             await axios.delete(`${API_URL}${id}/`, getAuthHeaders());
             setData(data.filter(d => d.id !== id));
             toast.success("Deleted!", { icon: '🗑️' });
         } catch (error) {
+            console.error("Delete Error:", error);
             toast.error("Error deleting");
         }
     };
     
-    // 2. Trigger Function (Shows the custom toast popup)
     const handleDeleteTrigger = (id) => {
         toast((t) => (
             <div style={{ color: '#fff' }}>
@@ -82,15 +81,18 @@ const CustomerData = () => {
             </div>
         ), { style: { background: '#1a1a1a', border: '1px solid #ff4444' }, duration: 4000 });
     };
-    // ----------------------------------------
 
     const handleInputChange = (e) => setNewData({ ...newData, [e.target.name]: e.target.value });
 
+    // ⚠️ Export Feature Disabled temporarily
     const handleExport = () => {
+        toast.error("Export feature ke liye 'npm install xlsx' run karein.");
+        /*
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Tech_Data");
         XLSX.writeFile(wb, "Technical_Customer_Data.xlsx");
+        */
     };
 
     // --- STYLES (Blue Theme) ---
@@ -162,7 +164,6 @@ const CustomerData = () => {
                                     </span>
                                 </td>
                                 <td style={styles.td}>
-                                    {/* Updated to call the Trigger function */}
                                     <button onClick={() => handleDeleteTrigger(d.id)} style={styles.deleteBtn}>Delete</button>
                                 </td>
                             </tr>
@@ -170,7 +171,6 @@ const CustomerData = () => {
                     </tbody>
                 </table>
             </div>
-             {/* DATE PICKER FIX */}
             <style>{`
                 input[type="date"]::-webkit-calendar-picker-indicator {
                     filter: invert(1);

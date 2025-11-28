@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
+// 1. Config import kar rahe hain taaki URL hamesha sahi rahe
+import BASE_API_URL from '../../config';
 
 const Register = () => {
     const [formData, setFormData] = useState({ username: '', email: '', password: '' });
@@ -16,18 +18,22 @@ const Register = () => {
         const toastId = toast.loading('Creating Identity...');
 
         try {
-            await axios.post('https://my-crm-backend.onrender.com/register', formData);
+            // 2. Yahan URL Hardcode mat kar, BASE_API_URL use kar.
+            // Aur endpoint '/api/register/' laga (slash zaroori hai Django ke liye)
+            await axios.post(`${BASE_API_URL}/api/register/`, formData);
             
             toast.success('Identity Created Successfully!', { id: toastId });
             navigate('/login');
         } catch (error) {
-            toast.error('Creation Failed. Username might be taken.', { 
+            console.error("Register Error:", error); // Console mein error dekhne ke liye
+            toast.error(error.response?.data?.message || 'Creation Failed. Username might be taken.', { 
                 id: toastId,
                 style: { border: '1px solid #ff0055', color: '#ff0055' }
             });
         }
     };
 
+    // ... (Baaki saara Style code same rahega) ...
     // --- STYLES FOR CENTERING AND DARK THEME ---
     const pageStyle = {
         minHeight: '100vh',
@@ -35,7 +41,7 @@ const Register = () => {
         justifyContent: 'center',
         alignItems: 'center',
         padding: '20px',
-        background: '#0f0f0f' // Dark background for contrast
+        background: '#0f0f0f' 
     };
     
     const cardStyle = {
