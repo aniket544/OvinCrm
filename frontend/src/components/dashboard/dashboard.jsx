@@ -3,8 +3,6 @@ import axios from 'axios';
 import { 
     PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
-// 1. Config Import kiya (Taaki URL hamesha sahi rahe)
-import BASE_API_URL from '../../config';
 
 const Dashboard = () => {
 
@@ -23,13 +21,12 @@ const Dashboard = () => {
     const username = localStorage.getItem("username") || "Admin";
     const MONTHLY_TARGET = 1000000;
 
-    // 2. Yahan URL Hardcode hata kar Sahi Endpoints laga diye
     const API_URLS = {
-        leads: `${BASE_API_URL}/api/leads/`,
-        customers: `${BASE_API_URL}/api/customers/`,
-        payments: `${BASE_API_URL}/api/payments/`,
-        tasks: `${BASE_API_URL}/api/tasks/`,
-        tenders: `${BASE_API_URL}/api/tenders/`
+        leads: 'https://my-crm-backend.onrender.com',
+        customers: 'https://my-crm-backend.onrender.com',
+        payments: 'https://my-crm-backend.onrender.com',
+        tasks: 'https://my-crm-backend.onrender.com',
+        tenders: 'https://my-crm-backend.onrender.com'
     };
 
     const getAuthHeaders = () => {
@@ -52,7 +49,6 @@ const Dashboard = () => {
                 const paymentsData = payments.data;
                 const tasksData = tasks.data;
                 const tendersData = tenders.data;
-                const customersData = customers.data; // Added missing customers data
 
                 const today = new Date().toISOString().split('T')[0];
                 const nextWeek = new Date();
@@ -88,7 +84,7 @@ const Dashboard = () => {
 
                 setStats({
                     totalLeads: leadsData.length,
-                    totalCustomers: customersData.length, // Fixed this too
+                    totalCustomers: customers.data.length,
                     totalRevenue,
                     pendingTasks,
                     leadsData: pieData,
@@ -99,7 +95,7 @@ const Dashboard = () => {
                 });
 
             } catch (error) {
-                console.error("Dashboard Load Error:", error);
+                console.error("Dashboard Load Error:", error.message);
             }
         };
 
@@ -279,6 +275,7 @@ const Dashboard = () => {
                 <div style={{ ...styles.listBox, height: '350px' }}>
                     <div style={{ marginBottom: '10px', color: '#0088FE', fontWeight: 'bold' }}>Lead Status Breakdown</div>
 
+                    {/* 🔥 FIXED HEIGHT to Prevent Chart Error */}
                     <ResponsiveContainer width="100%" height={250}>
                         <PieChart>
                             <Pie
