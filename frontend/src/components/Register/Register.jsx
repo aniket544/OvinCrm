@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-// 1. Config import kar rahe hain taaki URL hamesha sahi rahe
-import BASE_API_URL from '../../config';
+// ❌ Original import hata kar hardcode kar rahe hain taaki path error na aaye
+// import BASE_API_URL from '../../config'; 
+const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com"; 
+
 
 const Register = () => {
     const [formData, setFormData] = useState({ username: '', email: '', password: '' });
@@ -18,22 +20,26 @@ const Register = () => {
         const toastId = toast.loading('Creating Identity...');
 
         try {
-            // 2. Yahan URL Hardcode mat kar, BASE_API_URL use kar.
-            // Aur endpoint '/api/register/' laga (slash zaroori hai Django ke liye)
-            await axios.post(`${BASE_API_URL}/api/register/`, formData);
+            // ✅ FIXED: Using the hardcoded URL with correct endpoint
+            await axios.post(`${BASE_API_URL}/api/register/`, formData); 
             
             toast.success('Identity Created Successfully!', { id: toastId });
             navigate('/login');
+            
         } catch (error) {
-            console.error("Register Error:", error); // Console mein error dekhne ke liye
-            toast.error(error.response?.data?.message || 'Creation Failed. Username might be taken.', { 
+            console.error("Register Error:", error);
+            // Handling the error message from Django server (if available)
+            const errorMessage = error.response?.data?.username?.[0] || 
+                                 error.response?.data?.detail || 
+                                 'Creation Failed. Username might be taken.';
+
+            toast.error(errorMessage, { 
                 id: toastId,
                 style: { border: '1px solid #ff0055', color: '#ff0055' }
             });
         }
     };
 
-    // ... (Baaki saara Style code same rahega) ...
     // --- STYLES FOR CENTERING AND DARK THEME ---
     const pageStyle = {
         minHeight: '100vh',

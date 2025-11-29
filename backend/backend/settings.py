@@ -1,4 +1,6 @@
-# Django settings for backend project.
+"""
+Django settings for backend project.
+"""
 
 from pathlib import Path
 from datetime import timedelta
@@ -11,7 +13,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # --- Security & Debug ---
 SECRET_KEY = 'django-insecure-5%#o^xyi5=5e3y(o6*$zil6e(bnk6ehixxhm)s#$&-q6uv+!kk'
 
-DEBUG = False # Production mein False hona chahiye
+DEBUG = False 
 
 # FIX 1: Allow any host in production (Render default)
 ALLOWED_HOSTS = ['*'] 
@@ -114,7 +116,7 @@ SIMPLE_JWT = {
 
 
 # --- FINAL CORS CONFIG ---
-# FIX 4: Sabse zaroori fix. Render ka frontend aur tumhare dost ka laptop dono access kar payenge.
+# FIX 4: Sabse zaroori fix. Ye sabhi domains se registration allow kar dega.
 CORS_ALLOW_ALL_ORIGINS = True
 # CORS_ALLOWED_ORIGINS list ki zaroorat nahi agar ALL_ORIGINS True hai
 
