@@ -195,7 +195,7 @@ const LeadManager = () => {
             const data = XLSX.utils.sheet_to_json(ws, { raw: false });
 
             if (data.length === 0) { 
-                toast.error("File khali hai!"); 
+            toast.error("EMPTY FILE"); 
                 return; 
             }
 
@@ -247,8 +247,8 @@ const LeadManager = () => {
             toast.success("Saved!");
         } catch (error) { 
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
-                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
-                : "Data save karne mein error";
+                ? "" 
+                : "Save failed.";
             toast.error(message);
         }
     };
@@ -326,9 +326,9 @@ const LeadManager = () => {
     const handleDeleteTrigger = (id) => {
         toast((t) => (
             <div style={{ color: '#fff' }}>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>🗑️ Lead delete karein?</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>🗑️ Lead Delete?</div>
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                    <button onClick={() => { confirmDelete(id); toast.dismiss(t.id); }} style={{ background: '#ff4444', border: 'none', color: '#fff', padding: '5px 10px', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}>Haan</button>
+                    <button onClick={() => { confirmDelete(id); toast.dismiss(t.id); }} style={{ background: '#ff4444', border: 'none', color: '#fff', padding: '5px 10px', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}>Yes</button>
                     <button onClick={() => toast.dismiss(t.id)} style={{ background: '#444', border: '1px solid #555', color: '#fff', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer' }}>Cancel</button>
                 </div>
             </div>
@@ -354,7 +354,7 @@ const LeadManager = () => {
     const handleExport = () => {
         // Agar leads khali hai to export mat kar
         if (leads.length === 0) {
-            toast.error("Koi data nahi hai export karne ke liye.");
+            toast.error("three are no leads to export.");
             return;
         }
 
@@ -450,7 +450,7 @@ const LeadManager = () => {
                                 </td>
                                 <td style={styles.td}>
                                     <select name="status" value={newLead.status} onChange={handleInputChange} style={styles.select}>
-                                        <option>New</option><option>Contacted</option><option>Interested</option><option>Closed</option>
+                                        <option>New</option><option>Converted</option><option>Intrested</option><option>Closed</option>
                                     </select>
                                 </td>
                                 <td style={styles.td}>✨</td>

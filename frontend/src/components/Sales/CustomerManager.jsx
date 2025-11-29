@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-// import * as XLSX from 'xlsx'; // ❌ Filhal ke liye comment kiya hai (Build fix karne ke liye)
+import * as XLSX from 'xlsx'; // ✅ Import uncomment kar diya
 import { toast } from 'react-hot-toast';
-// import BASE_API_URL from '../../config'; // ❌ Config path error de raha tha, isliye direct URL use karenge
 
 const CustomerData = () => {
     const [data, setData] = useState([]);
@@ -10,7 +9,7 @@ const CustomerData = () => {
         company: '', machine: '', serial: '', warranty: '', service_due: '', status: 'Active'
     });
 
-    // ✅ DIRECT URL (Taaki Config file ka jhanjhat na rahe)
+    // ✅ Sahi URL
     const API_URL = 'https://my-crm-backend-a5q4.onrender.com/api/customers/';
 
     const getAuthHeaders = () => {
@@ -36,14 +35,23 @@ const CustomerData = () => {
             toast.error("Company Name Required!");
             return;
         }
+
+        // ✅ MAIN FIX: Agar date select nahi ki, to backend ko "" (empty string) mat bhejo, NULL bhejo.
+        // Nahi to backend error deta hai "Invalid Date format".
+        const payload = {
+            ...newData,
+            warranty: newData.warranty === '' ? null : newData.warranty,
+            service_due: newData.service_due === '' ? null : newData.service_due
+        };
+
         try {
-            const response = await axios.post(API_URL, newData, getAuthHeaders());
+            const response = await axios.post(API_URL, payload, getAuthHeaders());
             setData([...data, response.data]);
             setNewData({ company: '', machine: '', serial: '', warranty: '', service_due: '', status: 'Active' });
             toast.success("Technical Data Saved!");
         } catch (error) {
-            console.error("Save Error:", error);
-            toast.error("Error saving data");
+            console.error("Save Error:", error.response?.data); 
+            toast.error("Error saving data. Check fields.");
         }
     };
 
@@ -62,20 +70,20 @@ const CustomerData = () => {
         toast((t) => (
             <div style={{ color: '#fff' }}>
                 <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>
-                    🗑️ Permanently delete this Technical Record?
+                    🗑️ Delete Record?
                 </div>
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                     <button 
                         onClick={() => { confirmDelete(id); toast.dismiss(t.id); }}
                         style={{ background: '#ff4444', border: 'none', color: '#fff', padding: '5px 10px', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}
                     >
-                        Delete
+                        Yes
                     </button>
                     <button 
                         onClick={() => toast.dismiss(t.id)}
                         style={{ background: '#444', border: '1px solid #555', color: '#fff', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer' }}
                     >
-                        Cancel
+                        No
                     </button>
                 </div>
             </div>
@@ -84,18 +92,31 @@ const CustomerData = () => {
 
     const handleInputChange = (e) => setNewData({ ...newData, [e.target.name]: e.target.value });
 
-    // ⚠️ Export Feature Disabled temporarily
+    // ✅ EXPORT FUNCTION FIXED (Uncommented & Active)
     const handleExport = () => {
-        toast.error("Export feature ke liye 'npm install xlsx' run karein.");
-        /*
-        const ws = XLSX.utils.json_to_sheet(data);
+        if (data.length === 0) {
+            toast.error("Koi data nahi hai export karne ke liye.");
+            return;
+        }
+
+        // Data format karna export ke liye
+        const exportData = data.map(item => ({
+            Company: item.company,
+            Machine: item.machine,
+            Serial: item.serial,
+            Warranty: item.warranty || '-',
+            Service_Due: item.service_due || '-',
+            Status: item.status
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Tech_Data");
         XLSX.writeFile(wb, "Technical_Customer_Data.xlsx");
-        */
+        toast.success("Excel Downloaded! 📥");
     };
 
-    // --- STYLES (Blue Theme) ---
+    // --- Original Styles Preserved ---
     const styles = {
         container: { background: '#1a1a1a', borderRadius: '15px', padding: '25px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', border: '1px solid #333', color: '#e0e0e0', minHeight: '80vh' },
         header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #333', paddingBottom: '15px' },
