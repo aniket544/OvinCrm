@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import * as XLSX from 'xlsx'; // ✅ Import uncomment kar diya
+import * as XLSX from 'xlsx';
 import { toast } from 'react-hot-toast';
 
 const CustomerData = () => {
     const [data, setData] = useState([]);
+    
+    // ✅ FIX 1: 'company' ko badal kar 'name' kar diya (Backend yahi maang raha hai)
     const [newData, setNewData] = useState({
-        company: '', machine: '', serial: '', warranty: '', service_due: '', status: 'Active'
+        name: '', machine: '', serial: '', warranty: '', service_due: '', status: 'Active'
     });
 
-    // ✅ Sahi URL
     const API_URL = 'https://my-crm-backend-a5q4.onrender.com/api/customers/';
 
     const getAuthHeaders = () => {
@@ -31,13 +32,12 @@ const CustomerData = () => {
     };
 
     const handleSave = async () => {
-        if (!newData.company) {
+        // ✅ FIX 2: Validation check bhi 'name' par hoga
+        if (!newData.name) {
             toast.error("Company Name Required!");
             return;
         }
 
-        // ✅ MAIN FIX: Agar date select nahi ki, to backend ko "" (empty string) mat bhejo, NULL bhejo.
-        // Nahi to backend error deta hai "Invalid Date format".
         const payload = {
             ...newData,
             warranty: newData.warranty === '' ? null : newData.warranty,
@@ -47,11 +47,13 @@ const CustomerData = () => {
         try {
             const response = await axios.post(API_URL, payload, getAuthHeaders());
             setData([...data, response.data]);
-            setNewData({ company: '', machine: '', serial: '', warranty: '', service_due: '', status: 'Active' });
+            // ✅ FIX 3: Reset state me bhi 'name' use kiya
+            setNewData({ name: '', machine: '', serial: '', warranty: '', service_due: '', status: 'Active' });
             toast.success("Technical Data Saved!");
         } catch (error) {
             console.error("Save Error:", error.response?.data); 
-            toast.error("Error saving data. Check fields.");
+            // Error message clearly dikhana taaki agli baar samajh aaye
+            toast.error(`Error: ${JSON.stringify(error.response?.data)}`);
         }
     };
 
@@ -92,21 +94,20 @@ const CustomerData = () => {
 
     const handleInputChange = (e) => setNewData({ ...newData, [e.target.name]: e.target.value });
 
-    // ✅ EXPORT FUNCTION FIXED (Uncommented & Active)
     const handleExport = () => {
         if (data.length === 0) {
             toast.error("Koi data nahi hai export karne ke liye.");
             return;
         }
 
-        // Data format karna export ke liye
         const exportData = data.map(item => ({
-            Company: item.company,
-            Machine: item.machine,
-            Serial: item.serial,
-            Warranty: item.warranty || '-',
-            Service_Due: item.service_due || '-',
-            Status: item.status
+            // ✅ FIX 4: Export karte waqt bhi sahi field uthayi
+            "Company Name": item.name, 
+            "Machine Type": item.machine,
+            "Serial No.": item.serial,
+            "Warranty Exp.": item.warranty || '-',
+            "Service Due": item.service_due || '-',
+            "Status": item.status
         }));
 
         const ws = XLSX.utils.json_to_sheet(exportData);
@@ -116,7 +117,6 @@ const CustomerData = () => {
         toast.success("Excel Downloaded! 📥");
     };
 
-    // --- Original Styles Preserved ---
     const styles = {
         container: { background: '#1a1a1a', borderRadius: '15px', padding: '25px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', border: '1px solid #333', color: '#e0e0e0', minHeight: '80vh' },
         header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #333', paddingBottom: '15px' },
@@ -157,7 +157,8 @@ const CustomerData = () => {
                     </thead>
                     <tbody>
                         <tr style={{ background: '#2a2a2a' }}>
-                            <td style={styles.td}><input type="text" name="company" value={newData.company} onChange={handleInputChange} placeholder="Company" style={styles.input} /></td>
+                            {/* ✅ FIX 5: Input name attribute bhi change kiya 'company' -> 'name' */}
+                            <td style={styles.td}><input type="text" name="name" value={newData.name} onChange={handleInputChange} placeholder="Company" style={styles.input} /></td>
                             <td style={styles.td}><input type="text" name="machine" value={newData.machine} onChange={handleInputChange} placeholder="Machine" style={styles.input} /></td>
                             <td style={styles.td}><input type="text" name="serial" value={newData.serial} onChange={handleInputChange} placeholder="SN-000" style={styles.input} /></td>
                             <td style={styles.td}><input type="date" name="warranty" value={newData.warranty} onChange={handleInputChange} style={styles.input} /></td>
@@ -174,7 +175,8 @@ const CustomerData = () => {
 
                         {data.map((d) => (
                             <tr key={d.id} style={{ borderBottom: '1px solid #222' }}>
-                                <td style={{...styles.td, color: '#fff', fontWeight: 'bold'}}>{d.company}</td>
+                                {/* ✅ FIX 6: Data display karte waqt bhi 'd.name' use kiya */}
+                                <td style={{...styles.td, color: '#fff', fontWeight: 'bold'}}>{d.name}</td>
                                 <td style={styles.td}>{d.machine}</td>
                                 <td style={{...styles.td, color: '#00ffcc'}}>{d.serial}</td>
                                 <td style={styles.td}>{d.warranty}</td>

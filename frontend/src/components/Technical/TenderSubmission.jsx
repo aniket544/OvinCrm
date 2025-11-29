@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-// import * as XLSX from 'xlsx'; // ❌ Build error rokne ke liye comment kiya hai
+ import * as XLSX from 'xlsx'; // ❌ Build error rokne ke liye comment kiya hai
 import { toast, Toaster } from 'react-hot-toast'; 
 
 const TenderSubmission = () => {
@@ -80,7 +80,7 @@ const TenderSubmission = () => {
         toast((t) => (
             <div style={{ padding: '15px', textAlign: 'center', fontFamily: 'system-ui' }}>
                 <p style={{ margin: '0 0 15px', color: '#fff', fontWeight: 'bold', fontSize: '15px' }}>
-                    Is tender ko hamesha ke liye delete karna hai?
+                  Delete This Tender?
                 </p>
                 <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
                     <button
@@ -98,7 +98,7 @@ const TenderSubmission = () => {
                             cursor: 'pointer'
                         }}
                     >
-                        Haan, delete karo
+                        Yes
                     </button>
                     <button
                         onClick={() => toast.dismiss(t.id)}
@@ -111,7 +111,7 @@ const TenderSubmission = () => {
                             cursor: 'pointer'
                         }}
                     >
-                        Cancel karo
+                        Cancel 
                     </button>
                 </div>
             </div>
@@ -128,12 +128,12 @@ const TenderSubmission = () => {
     // ❌ Export Disabled Temporarily (XLSX error se bachne ke liye)
     const handleExport = () => {
         if (tenders.length === 0) {
-            toast.error("Export ke liye tenders nahi hain!");
+            toast.error("No tenders to export.");
             return;
         }
 
         toast.error("Export feature ke liye 'npm install xlsx' run karein.");
-        /*
+        
         const exportData = tenders.map(t => ({
             'Date': t.date || '-',
             'Company': t.company || '-',
@@ -153,7 +153,7 @@ const TenderSubmission = () => {
         XLSX.writeFile(wb, `Tender_List_${today}.xlsx`);
 
         toast.success("Excel exported successfully!");
-        */
+        
     };
 
     // STYLES
