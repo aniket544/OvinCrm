@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 // import * as XLSX from 'xlsx'; // ❌ Build error rokne ke liye comment kiya hai
 import { toast } from 'react-hot-toast';
+import * as XLSX from 'xlsx';
 // import BASE_API_URL from '../../config'; // Path error se bachne ke liye hardcode kar rahe hain
 
 // --- 1. FOLLOW UP MODAL COMPONENT (Helper) ---
@@ -181,36 +182,61 @@ const LeadManager = () => {
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
+
         const reader = new FileReader();
         reader.onload = async (evt) => {
             const arrayBuffer = evt.target.result;
-            // Build Fix: XLSX is commented out, so we skip the import logic here
-            toast.error("Import feature ke liye 'npm install xlsx' run karein.");
-            // Original XLSX logic commented below
-            /*
+            
+            // Workbook read kar rahe hain
             const wb = XLSX.read(arrayBuffer, { type: 'array' });
+            // Pehli sheet utha rahe hain
             const ws = wb.Sheets[wb.SheetNames[0]];
+            // Data ko JSON mein convert kar rahe hain
             const data = XLSX.utils.sheet_to_json(ws, { raw: false });
 
-            if (data.length === 0) { toast.error("File Empty!"); return; }
+            if (data.length === 0) { 
+                toast.error("File khali hai!"); 
+                return; 
+            }
+
             const toastId = toast.loading(`Importing ${data.length} leads...`);
             let count = 0;
             
+            // Har row ke liye loop chala rahe hain
             for (const row of data) {
+                // Excel ke columns ko API ke format mein map kar rahe hain
+                // Dhyan dena: Excel mein headers 'Company', 'Name' etc. hone chahiye (Capital letter matter karta hai)
                 const payload = {
-                    date: new Date().toISOString(), company: row.Company || "Unknown", name: row.Name || "Unknown", contact: row.Contact ? String(row.Contact) : "",
-                    email: row.Email || "", address: row.Address || "", note: row.Note || "", purpose: row.Purpose || "", status: "New"
+                    date: new Date().toISOString(), 
+                    company: row.Company || row.company || "Unknown", 
+                    name: row.Name || row.name || "Unknown", 
+                    contact: row.Contact || row.contact ? String(row.Contact || row.contact) : "",
+                    email: row.Email || row.email || "", 
+                    address: row.Address || row.address || "", 
+                    note: row.Note || row.note || "Imported", 
+                    purpose: row.Purpose || row.purpose || "General", 
+                    status: "New"
                 };
-                try { await axios.post(LEAD_API_URL, payload, getAuthHeaders()); count++; } catch (err) {}
+
+                try { 
+                    // Backend pe data bhej rahe hain
+                    const headers = getAuthHeaders();
+                    const res = await axios.post(LEAD_API_URL, payload, headers);
+                    // State update kar rahe hain taaki table turant refresh ho jaye
+                    setLeads(prev => [...prev, res.data]);
+                    count++; 
+                } catch (err) {
+                    console.error("Row fail hui:", row, err);
+                }
             }
-            toast.success(`${count} Imported!`, { id: toastId });
-            fetchLeads();
+
+            toast.success(`${count} Leads successfully import ho gayi!`, { id: toastId });
+            
+            // Input clear kar rahe hain taaki dobara same file select kar sakein
             e.target.value = null;
-            */
         };
         reader.readAsArrayBuffer(file);
     };
-
     const handleSave = async () => {
         if (!newLead.company) { toast.error("Company Required!"); return; }
         try {
@@ -326,13 +352,35 @@ const LeadManager = () => {
     const handleInputChange = (e) => setNewLead({ ...newLead, [e.target.name]: e.target.value });
     
     const handleExport = () => {
-        toast.error("Export feature ke liye 'npm install xlsx' run karein.");
-        /*
-        const ws = XLSX.utils.json_to_sheet(leads);
+        // Agar leads khali hai to export mat kar
+        if (leads.length === 0) {
+            toast.error("Koi data nahi hai export karne ke liye.");
+            return;
+        }
+
+        // 1. JSON data ko Sheet mein badalna
+        // Hum sirf zaroori columns hi export karenge taaki file saaf dikhe
+        const dataToExport = leads.map(lead => ({
+            Date: formatDateTime(lead.date),
+            Company: lead.company,
+            Name: lead.name,
+            Contact: lead.contact,
+            Email: lead.email,
+            Address: lead.address,
+            Status: lead.status,
+            Purpose: lead.purpose,
+            Note: lead.note
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        
+        // 2. Workbook banana
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Leads");
-        XLSX.writeFile(wb, "Leads.xlsx");
-        */
+        XLSX.utils.book_append_sheet(wb, ws, "Leads Data");
+
+        // 3. File download karwana
+        XLSX.writeFile(wb, "My_Leads.xlsx");
+        toast.success("Excel file download ho gayi! 📥");
     };
 
     // --- STYLES ---
