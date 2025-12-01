@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-// import * as XLSX from 'xlsx'; // ❌ Build error rokne ke liye comment kiya hai
 import { toast } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
-// import BASE_API_URL from '../../config'; // Path error se bachne ke liye hardcode kar rahe hain
 
 // --- 1. FOLLOW UP MODAL COMPONENT (Helper) ---
 const FollowUpModal = ({ lead, onClose, onConfirm }) => {
@@ -17,7 +15,7 @@ const FollowUpModal = ({ lead, onClose, onConfirm }) => {
             toast.error("Please select a date.");
             return;
         }
-        onConfirm(lead, followUpDate, priority, remarks); // Lead object pass kar rahe hain
+        onConfirm(lead, followUpDate, priority, remarks); 
     };
 
     const styles = {
@@ -110,14 +108,12 @@ const PaymentDetailsModal = ({ lead, onClose, onConfirm }) => {
 const LeadManager = () => {
     
     // --- HELPER FUNCTIONS ---
-    // ✅ FIXED: Using corrected BASE URL here to avoid config error
     const BASE_URL_FIX = "https://my-crm-backend-a5q4.onrender.com";
 
     const getCurrentDateTime = () => {
         const now = new Date();
         now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        return now.toISOString().slice(0, 16); // YYYY-MM-DDTHH:MM format
-        
+        return now.toISOString().slice(0, 16); 
     };
 
     const formatDateTime = (isoString) => {
@@ -139,6 +135,11 @@ const LeadManager = () => {
     // --- STATE ---
     const [leads, setLeads] = useState([]);
     
+    // --- 🔒 SECURITY CHECK ---
+    const userRole = localStorage.getItem('role');
+    const isReadOnly = userRole === 'Tech'; 
+    // ---------------------------------
+
     const [newLead, setNewLead] = useState({
         date: getCurrentDateTime(), sno: '', company: '', name: '', contact: '', email: '', 
         address: '', 
@@ -146,20 +147,19 @@ const LeadManager = () => {
     });
     
     // MODAL STATES
-    const [showModal, setShowModal] = useState(false); // FollowUp Modal
+    const [showModal, setShowModal] = useState(false); 
     const [currentLeadForTask, setCurrentLeadForTask] = useState(null); 
-    const [showPaymentModal, setShowPaymentModal] = useState(false); // Payment Modal
+    const [showPaymentModal, setShowPaymentModal] = useState(false); 
 
     const fileInputRef = useRef(null);
     
-    // ✅ FIXED URLS: Sahi domain + /api/ + trailing slash
-    const LEAD_API_URL = `${BASE_URL_FIX}/api/leads/`; // API URL for Lead operations
-    const TASK_API_URL = `${BASE_URL_FIX}/api/sales-tasks/`; // API URL for creating the Sales Task
+    const LEAD_API_URL = `${BASE_URL_FIX}/api/leads/`; 
+    const TASK_API_URL = `${BASE_URL_FIX}/api/sales-tasks/`; 
 
     const purposeOptions = [
-        "TENDER MANAGMENT", "VENDOR ASSESSMENT", "GEM REGISTRATION", "DIRECT ORDER",
-        "DIRECT LINK", "NOT INTRESTED", "STARTUP INDIA CERTIFICATE",
-        "BUSINESS DEVELOPEMENT SERVICES", "L1", "TRAINING GEM"
+        "TENDER MANAGEMENT", "VENDOR ASSESSMENT", "GEM REGISTRATION", "DIRECT ORDER",
+        "DIRECT LINK", "NOT INTERESTED", "STARTUP INDIA CERTIFICATE",
+        "BUSINESS DEVELOPMENT SERVICES", "L1", "TRAINING GEM"
     ];
 
     useEffect(() => { fetchLeads(); }, []);
@@ -172,13 +172,14 @@ const LeadManager = () => {
         } catch (error) { 
             console.error(error);
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
-                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
-                : "Leads load karne mein fail ho gaya।";
+                ? "Unauthorized: Please log in first." 
+                : "Failed to load leads.";
             toast.error(message);
         }
     };
 
     const handleImportClick = () => fileInputRef.current.click();
+    
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -186,26 +187,19 @@ const LeadManager = () => {
         const reader = new FileReader();
         reader.onload = async (evt) => {
             const arrayBuffer = evt.target.result;
-            
-            // Workbook read kar rahe hain
             const wb = XLSX.read(arrayBuffer, { type: 'array' });
-            // Pehli sheet utha rahe hain
             const ws = wb.Sheets[wb.SheetNames[0]];
-            // Data ko JSON mein convert kar rahe hain
             const data = XLSX.utils.sheet_to_json(ws, { raw: false });
 
             if (data.length === 0) { 
-            toast.error("EMPTY FILE"); 
+                toast.error("File is empty."); 
                 return; 
             }
 
             const toastId = toast.loading(`Importing ${data.length} leads...`);
             let count = 0;
             
-            // Har row ke liye loop chala rahe hain
             for (const row of data) {
-                // Excel ke columns ko API ke format mein map kar rahe hain
-                // Dhyan dena: Excel mein headers 'Company', 'Name' etc. hone chahiye (Capital letter matter karta hai)
                 const payload = {
                     date: new Date().toISOString(), 
                     company: row.Company || row.company || "Unknown", 
@@ -219,57 +213,52 @@ const LeadManager = () => {
                 };
 
                 try { 
-                    // Backend pe data bhej rahe hain
                     const headers = getAuthHeaders();
                     const res = await axios.post(LEAD_API_URL, payload, headers);
-                    // State update kar rahe hain taaki table turant refresh ho jaye
                     setLeads(prev => [...prev, res.data]);
                     count++; 
                 } catch (err) {
-                    console.error("Row fail hui:", row, err);
+                    console.error("Row failed:", row, err);
                 }
             }
 
-            toast.success(`${count} Leads successfully import ho gayi!`, { id: toastId });
-            
-            // Input clear kar rahe hain taaki dobara same file select kar sakein
+            toast.success(`${count} Leads imported successfully!`, { id: toastId });
             e.target.value = null;
         };
         reader.readAsArrayBuffer(file);
     };
+
     const handleSave = async () => {
-        if (!newLead.company) { toast.error("Company Required!"); return; }
+        if (!newLead.company) { toast.error("Company Name is Required!"); return; }
         try {
             const headers = getAuthHeaders();
             const res = await axios.post(LEAD_API_URL, newLead, headers);
             setLeads([...leads, res.data]);
             setNewLead({ date: getCurrentDateTime(), sno: '', company: '', name: '', contact: '', email: '', address: '', note: '', purpose: '', status: 'New' });
-            toast.success("Saved!");
+            toast.success("Saved Successfully!");
         } catch (error) { 
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
-                ? "" 
-                : "Save failed.";
+                ? "Unauthorized: Please log in first." 
+                : "Failed to save lead.";
             toast.error(message);
         }
     };
 
-    // --- 1. FOLLOW UP (Triggers FollowUpModal) ---
+    // --- FOLLOW UP & PAYMENT HANDLERS ---
     const handleMoveToSalesTrigger = (lead) => {
         setCurrentLeadForTask(lead);
-        setShowModal(true); // Opens the FollowUpModal 
+        setShowModal(true); 
     };
     
-    // 2. CONFIRM FOLLOW UP (API CALL from Modal)
     const confirmMoveToSales = async (lead, followUpDate, priority, remarks) => {
         const toastId = toast.loading("Creating Task...");
         const headers = getAuthHeaders();
 
-        // Step 1: Create the Sales Task Entry (NEW LOGIC)
         const taskPayload = {
             lead_name: lead.name,
             company: lead.company,
             contact: lead.contact,
-            task_type: 'Call', // Default task type
+            task_type: 'Call',
             next_follow_up: followUpDate,
             priority: priority,
             remarks: remarks,
@@ -277,48 +266,42 @@ const LeadManager = () => {
         };
 
         try {
-            // Task Creation API Call (Sends data to Sales Task Manager)
             await axios.post(TASK_API_URL, taskPayload, headers); 
-            
-            // Step 2: Update Lead Status to 'Interested' (Original Logic)
             await axios.patch(`${LEAD_API_URL}${lead.id}/`, { status: 'Interested' }, headers); 
 
             setLeads(leads.map(l => l.id === lead.id ? { ...l, status: 'Interested' } : l));
             toast.success("Task Created and Lead Updated! 📞", { id: toastId });
-            setShowModal(false); // Close Modal on success
+            setShowModal(false); 
         } catch (error) { 
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
-                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
+                ? "Unauthorized: Please log in first." 
                 : "Task creation failed.";
             toast.error(message, { id: toastId }); 
             setShowModal(false);
         }
     };
 
-    // 3. CONVERT TO PAYMENT (Triggers Payment Modal) --- NEW LOGIC
     const handleConvertTrigger = (lead) => {
-        const leadToConvert = leads.find(l => l.id === lead.id); // Get the full lead data
+        const leadToConvert = leads.find(l => l.id === lead.id); 
         if (leadToConvert) {
             setCurrentLeadForTask(leadToConvert);
-            setShowPaymentModal(true); // Opens the new Payment Modal
+            setShowPaymentModal(true); 
         }
     };
     
-    // 4. CONFIRM PAYMENT (API Call from Payment Modal)
     const confirmPaymentRecord = async (leadId, paymentData) => {
         const toastId = toast.loading("Processing Deal...");
         try {
             const headers = getAuthHeaders();
-            // Updated API call sends payment data and converts lead status
             await axios.post(`${LEAD_API_URL}${leadId}/convert/`, paymentData, headers); 
             setLeads(leads.map(lead => lead.id === leadId ? { ...lead, status: 'Converted' } : lead));
             toast.success("Payment Record Created! 💰", { id: toastId });
-            setShowPaymentModal(false); // Close modal
+            setShowPaymentModal(false); 
         } catch (error) { 
             console.error("Payment API Error:", error.response?.data);
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
-                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
-                : "Deal finalize karne mein fail ho gaya!";
+                ? "Unauthorized: Please log in first." 
+                : "Failed to finalize the deal!";
             toast.error(message, { id: toastId }); 
         }
     };
@@ -326,7 +309,7 @@ const LeadManager = () => {
     const handleDeleteTrigger = (id) => {
         toast((t) => (
             <div style={{ color: '#fff' }}>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>🗑️ Lead Delete?</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>🗑️ Delete Lead?</div>
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                     <button onClick={() => { confirmDelete(id); toast.dismiss(t.id); }} style={{ background: '#ff4444', border: 'none', color: '#fff', padding: '5px 10px', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}>Yes</button>
                     <button onClick={() => toast.dismiss(t.id)} style={{ background: '#444', border: '1px solid #555', color: '#fff', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer' }}>Cancel</button>
@@ -340,10 +323,10 @@ const LeadManager = () => {
             const headers = getAuthHeaders();
             await axios.delete(`${LEAD_API_URL}${id}/`, headers); 
             setLeads(leads.filter(l => l.id !== id)); 
-            toast.success("Deleted!"); 
+            toast.success("Deleted Successfully!"); 
         } catch (error) {
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
-                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
+                ? "Unauthorized: Please log in first." 
                 : "Delete failed.";
             toast.error(message);
         }
@@ -352,14 +335,11 @@ const LeadManager = () => {
     const handleInputChange = (e) => setNewLead({ ...newLead, [e.target.name]: e.target.value });
     
     const handleExport = () => {
-        // Agar leads khali hai to export mat kar
         if (leads.length === 0) {
-            toast.error("three are no leads to export.");
+            toast.error("There are no leads to export.");
             return;
         }
 
-        // 1. JSON data ko Sheet mein badalna
-        // Hum sirf zaroori columns hi export karenge taaki file saaf dikhe
         const dataToExport = leads.map(lead => ({
             Date: formatDateTime(lead.date),
             Company: lead.company,
@@ -373,14 +353,10 @@ const LeadManager = () => {
         }));
 
         const ws = XLSX.utils.json_to_sheet(dataToExport);
-        
-        // 2. Workbook banana
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Leads Data");
-
-        // 3. File download karwana
         XLSX.writeFile(wb, "My_Leads.xlsx");
-        toast.success("Excel file download ho gayi! 📥");
+        toast.success("Excel file downloaded successfully! 📥");
     };
 
     // --- STYLES ---
@@ -408,9 +384,15 @@ const LeadManager = () => {
                 <div style={styles.header}>
                     <div style={styles.title}>Lead Manager</div>
                     <div>
-                        <button style={styles.btnPrimary} onClick={handleSave}>+ Save</button>
-                        <input type="file" accept=".xlsx, .xls" ref={fileInputRef} style={{display: 'none'}} onChange={handleFileChange} />
-                        <button style={styles.btnImport} onClick={handleImportClick}>📥 Import</button>
+                        {/* 👇 SECURITY: Tech team ko Save/Import ka option mat dikhao */}
+                        {!isReadOnly && (
+                            <>
+                                <button style={styles.btnPrimary} onClick={handleSave}>+ Save</button>
+                                <input type="file" accept=".xlsx, .xls" ref={fileInputRef} style={{display: 'none'}} onChange={handleFileChange} />
+                                <button style={styles.btnImport} onClick={handleImportClick}>📥 Import</button>
+                            </>
+                        )}
+                        {/* 👆 End Security Check */}
                         <button style={styles.btnSuccess} onClick={handleExport}>Export</button>
                     </div>
                 </div>
@@ -433,28 +415,32 @@ const LeadManager = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr style={{ background: '#2a2a2a' }}>
-                                <td style={styles.td}><input type="datetime-local" name="date" value={newLead.date} onChange={handleInputChange} style={styles.input} /></td>
-                                <td style={styles.td}><input type="text" name="sno" value={newLead.sno} onChange={handleInputChange} placeholder="1" style={{...styles.input, width: '50px'}} /></td>
-                                <td style={styles.td}><input type="text" name="company" value={newLead.company} onChange={handleInputChange} placeholder="Company" style={styles.input} /></td>
-                                <td style={styles.td}><input type="text" name="name" value={newLead.name} onChange={handleInputChange} placeholder="Name" style={styles.input} /></td>
-                                <td style={styles.td}><input type="text" name="contact" value={newLead.contact} onChange={handleInputChange} placeholder="Phone" style={styles.input} /></td>
-                                <td style={styles.td}><input type="text" name="email" value={newLead.email} onChange={handleInputChange} placeholder="Email" style={styles.input} /></td>
-                                <td style={styles.td}><input type="text" name="address" value={newLead.address} onChange={handleInputChange} placeholder="Address" style={styles.input} /></td>
-                                <td style={styles.td}><input type="text" name="note" value={newLead.note} onChange={handleInputChange} placeholder="Note" style={styles.input} /></td>
-                                <td style={styles.td}>
-                                    <select name="purpose" value={newLead.purpose} onChange={handleInputChange} style={styles.select}>
-                                        <option value="">Select</option>
-                                        {purposeOptions.map((o, i) => <option key={i} value={o}>{o}</option>)}
-                                    </select>
-                                </td>
-                                <td style={styles.td}>
-                                    <select name="status" value={newLead.status} onChange={handleInputChange} style={styles.select}>
-                                        <option>New</option><option>Converted</option><option>Intrested</option><option>Closed</option>
-                                    </select>
-                                </td>
-                                <td style={styles.td}>✨</td>
-                            </tr>
+                            {/* 👇 SECURITY: Tech team ko Input Row mat dikhao */}
+                            {!isReadOnly && (
+                                <tr style={{ background: '#2a2a2a' }}>
+                                    <td style={styles.td}><input type="datetime-local" name="date" value={newLead.date} onChange={handleInputChange} style={styles.input} /></td>
+                                    <td style={styles.td}><input type="text" name="sno" value={newLead.sno} onChange={handleInputChange} placeholder="1" style={{...styles.input, width: '50px'}} /></td>
+                                    <td style={styles.td}><input type="text" name="company" value={newLead.company} onChange={handleInputChange} placeholder="Company" style={styles.input} /></td>
+                                    <td style={styles.td}><input type="text" name="name" value={newLead.name} onChange={handleInputChange} placeholder="Name" style={styles.input} /></td>
+                                    <td style={styles.td}><input type="text" name="contact" value={newLead.contact} onChange={handleInputChange} placeholder="Phone" style={styles.input} /></td>
+                                    <td style={styles.td}><input type="text" name="email" value={newLead.email} onChange={handleInputChange} placeholder="Email" style={styles.input} /></td>
+                                    <td style={styles.td}><input type="text" name="address" value={newLead.address} onChange={handleInputChange} placeholder="Address" style={styles.input} /></td>
+                                    <td style={styles.td}><input type="text" name="note" value={newLead.note} onChange={handleInputChange} placeholder="Note" style={styles.input} /></td>
+                                    <td style={styles.td}>
+                                        <select name="purpose" value={newLead.purpose} onChange={handleInputChange} style={styles.select}>
+                                            <option value="">Select</option>
+                                            {purposeOptions.map((o, i) => <option key={i} value={o}>{o}</option>)}
+                                        </select>
+                                    </td>
+                                    <td style={styles.td}>
+                                        <select name="status" value={newLead.status} onChange={handleInputChange} style={styles.select}>
+                                            <option>New</option><option>Converted</option><option>Interested</option><option>Closed</option>
+                                        </select>
+                                    </td>
+                                    <td style={styles.td}>✨</td>
+                                </tr>
+                            )}
+                            {/* 👆 End Security Check */}
 
                             {/* DATA ROWS */}
                             {leads.map((l, index) => (
@@ -475,13 +461,20 @@ const LeadManager = () => {
                                     </td>
                                     <td style={styles.td}>
                                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                                            {/* FOLLOW UP BUTTON (Leads to Sales Task Creation) */}
-                                            <button style={styles.btnFollow} onClick={() => handleMoveToSalesTrigger(l)} title="Send to Sales">Follow Up 📞</button>
-                                            
-                                            {l.status !== 'Converted' && (
-                                                <button style={styles.btnConvert} onClick={() => handleConvertTrigger(l)} title="Convert">Convert 💰</button>
+                                            {/* 👇 SECURITY: Hide Actions for Tech users */}
+                                            {!isReadOnly ? (
+                                                <>
+                                                    <button style={styles.btnFollow} onClick={() => handleMoveToSalesTrigger(l)} title="Send to Sales">Follow Up 📞</button>
+                                                    
+                                                    {l.status !== 'Converted' && (
+                                                        <button style={styles.btnConvert} onClick={() => handleConvertTrigger(l)} title="Convert">Convert 💰</button>
+                                                    )}
+                                                    <button style={styles.btnDelete} onClick={() => handleDeleteTrigger(l.id)}>Del</button>
+                                                </>
+                                            ) : (
+                                                <span style={{fontSize: '16px', opacity: 0.7}}>👁️ View Only</span>
                                             )}
-                                            <button style={styles.btnDelete} onClick={() => handleDeleteTrigger(l.id)}>Del</button>
+                                            {/* 👆 End Security Check */}
                                         </div>
                                     </td>
                                 </tr>

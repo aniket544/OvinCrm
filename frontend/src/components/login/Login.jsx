@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom'; 
 import { toast } from 'react-hot-toast';
-// import BASE_API_URL from '../../config'; // ❌ Path error se bachne ke liye hardcode kar rahe hain
 
 // ✅ CORRECTED AND HARDCODED BASE URL
 const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com"; 
@@ -27,6 +26,11 @@ const Login = ({ setIsLoggedIn }) => {
             localStorage.setItem('refresh_token', response.data.refresh);
             localStorage.setItem('username', formData.username);
             
+            // 👇👇👇 YE LINE ADD KI HAI (IMPORTANT) 👇👇👇
+            // Backend ab Token ke saath 'role' bhi bhej raha hai (Sales/Tech), usse save karna zaroori hai
+            localStorage.setItem('role', response.data.role); 
+            // 👆👆👆
+
             setIsLoggedIn(true);
             toast.success('Access Granted!', { id: toastId });
             navigate('/dashboard', { replace: true });

@@ -4,6 +4,25 @@ from .models import Lead, Customer, Payment, Task, Tender, TechData
 from .models import SalesTask # <-- Import me add karna mat bhoolna
 
 
+
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        
+        # Check User Group
+        user_groups = self.user.groups.values_list('name', flat=True)
+        
+        if 'Sales' in user_groups:
+            data['role'] = 'Sales'
+        elif 'Tech' in user_groups:
+            data['role'] = 'Tech'
+        else:
+            data['role'] = 'Admin' # Default fallback
+            
+        return data
+
 # 1. Register Serializer
 class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
