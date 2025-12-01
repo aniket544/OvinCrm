@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
- import * as XLSX from 'xlsx'; // ❌ Build error rokne ke liye comment kiya hai
+import * as XLSX from 'xlsx'; 
 import { toast, Toaster } from 'react-hot-toast'; 
 
 const TenderSubmission = () => {
@@ -9,11 +9,16 @@ const TenderSubmission = () => {
         date: '', company: '', bid_no: '', item: '', start_date: '', end_date: '', status: 'Draft'
     });
 
-    // ✅ FIXED URLS: Correct domain, added /api/, and trailing slash
+    // --- 🔒 SECURITY CHECK (Added) ---
+    // Agar banda Sales team se hai, toh wo Tenders ko Edit/Delete nahi kar sakta
+    const userRole = localStorage.getItem('role');
+    const isReadOnly = userRole === 'Sales'; 
+    // ---------------------------------
+
+    // ✅ FIXED URLS
     const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com";
     const API_URL = `${BASE_API_URL}/api/tenders/`; 
 
-    // FIX: Check for token and throw error if missing
     const getAuthHeaders = () => {
         const token = localStorage.getItem('access_token');
         if (!token) {
@@ -34,8 +39,8 @@ const TenderSubmission = () => {
         } catch (error) {
             console.error("Fetch error:", error);
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
-                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
-                : "Tenders load karne mein fail ho gaya। (Failed to load tenders.)";
+                ? "Unauthorized: Please log in first." 
+                : "Failed to load tenders.";
             toast.error(message);
         }
     };
@@ -55,8 +60,8 @@ const TenderSubmission = () => {
         } catch (error) {
             console.error(error.response?.data);
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
-                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
-                : "Tender save karne mein error!";
+                ? "Unauthorized: Please log in first." 
+                : "Error saving tender!";
             toast.error(message);
         }
     };
@@ -70,8 +75,8 @@ const TenderSubmission = () => {
             toast.success("Tender Deleted!", { icon: 'Success' });
         } catch (error) {
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
-                ? " Please log in first" 
-                : "Delete karne mein fail ho gaya";
+                ? "Unauthorized: Please log in first." 
+                : "Delete failed.";
             toast.error(message);
         }
     };
@@ -125,14 +130,11 @@ const TenderSubmission = () => {
         setNewTender({ ...newTender, [e.target.name]: e.target.value });
     };
 
-    // ❌ Export Disabled Temporarily (XLSX error se bachne ke liye)
     const handleExport = () => {
         if (tenders.length === 0) {
             toast.error("No tenders to export.");
             return;
         }
-
-        toast.error("Export feature ke liye 'npm install xlsx' run karein.");
         
         const exportData = tenders.map(t => ({
             'Date': t.date || '-',
@@ -153,7 +155,6 @@ const TenderSubmission = () => {
         XLSX.writeFile(wb, `Tender_List_${today}.xlsx`);
 
         toast.success("Excel exported successfully!");
-        
     };
 
     // STYLES
@@ -172,7 +173,7 @@ const TenderSubmission = () => {
         deleteBtn: { background: 'transparent', border: '1.5px solid #ff4444', color: '#ff4444', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', transition: 'all 0.3s' }
     };
 
-    // Helper function for row styling based on end_date
+    // Helper function for row styling
     const getTenderStatusColor = (endDate, status) => {
         if (status === 'Won') return { backgroundColor: 'rgba(39, 174, 96, 0.2)', borderLeft: '3px solid #28a745' };
         if (status === 'Lost') return { backgroundColor: 'rgba(255, 68, 68, 0.2)', borderLeft: '3px solid #ff4444' };
@@ -203,7 +204,11 @@ const TenderSubmission = () => {
                 <div style={styles.header}>
                     <h1 style={styles.title}>Tender Submission</h1>
                     <div>
-                        <button style={styles.btnPrimary} onClick={handleSave}>+ New Bid</button>
+                        {/* 👇 SECURITY: Hide Save Button for Sales */}
+                        {!isReadOnly && (
+                            <button style={styles.btnPrimary} onClick={handleSave}>+ New Bid</button>
+                        )}
+                        {/* 👆 End Security Check */}
                         <button style={styles.btnSuccess} onClick={handleExport}>Export Excel</button>
                     </div>
                 </div>
@@ -223,24 +228,27 @@ const TenderSubmission = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {/* New Tender Row */}
-                            <tr style={{ background: '#2a2a2a' }}>
-                                <td style={styles.td}><input type="date" name="date" value={newTender.date} onChange={handleInputChange} style={styles.input} /></td>
-                                <td style={styles.td}><input type="text" name="company" value={newTender.company} onChange={handleInputChange} placeholder="Company Name" style={styles.input} /></td>
-                                <td style={styles.td}><input type="text" name="bid_no" value={newTender.bid_no} onChange={handleInputChange} placeholder="BID-001" style={styles.input} /></td>
-                                <td style={styles.td}><input type="text" name="item" value={newTender.item} onChange={handleInputChange} placeholder="Item Description" style={styles.input} /></td>
-                                <td style={styles.td}><input type="date" name="start_date" value={newTender.start_date} onChange={handleInputChange} style={styles.input} /></td>
-                                <td style={styles.td}><input type="date" name="end_date" value={newTender.end_date} onChange={handleInputChange} style={styles.input} /></td>
-                                <td style={styles.td}>
-                                    <select name="status" value={newTender.status} onChange={handleInputChange} style={styles.select}>
-                                        <option value="Draft">Draft</option>
-                                        <option value="Submitted">Submitted</option>
-                                        <option value="Won">Won</option>
-                                        <option value="Lost">Lost</option>
-                                    </select>
-                                </td>
-                                <td style={styles.td}></td>
-                            </tr>
+                            {/* 👇 SECURITY: Hide Input Row for Sales */}
+                            {!isReadOnly && (
+                                <tr style={{ background: '#2a2a2a' }}>
+                                    <td style={styles.td}><input type="date" name="date" value={newTender.date} onChange={handleInputChange} style={styles.input} /></td>
+                                    <td style={styles.td}><input type="text" name="company" value={newTender.company} onChange={handleInputChange} placeholder="Company Name" style={styles.input} /></td>
+                                    <td style={styles.td}><input type="text" name="bid_no" value={newTender.bid_no} onChange={handleInputChange} placeholder="BID-001" style={styles.input} /></td>
+                                    <td style={styles.td}><input type="text" name="item" value={newTender.item} onChange={handleInputChange} placeholder="Item Description" style={styles.input} /></td>
+                                    <td style={styles.td}><input type="date" name="start_date" value={newTender.start_date} onChange={handleInputChange} style={styles.input} /></td>
+                                    <td style={styles.td}><input type="date" name="end_date" value={newTender.end_date} onChange={handleInputChange} style={styles.input} /></td>
+                                    <td style={styles.td}>
+                                        <select name="status" value={newTender.status} onChange={handleInputChange} style={styles.select}>
+                                            <option value="Draft">Draft</option>
+                                            <option value="Submitted">Submitted</option>
+                                            <option value="Won">Won</option>
+                                            <option value="Lost">Lost</option>
+                                        </select>
+                                    </td>
+                                    <td style={styles.td}></td>
+                                </tr>
+                            )}
+                            {/* 👆 End Security Check */}
 
                             {/* Existing Tenders */}
                             {tenders.map((t) => (
@@ -266,14 +274,20 @@ const TenderSubmission = () => {
                                         </span>
                                     </td>
                                     <td style={styles.td}>
-                                        <button 
-                                            onClick={() => handleDeleteTrigger(t.id)} 
-                                            style={styles.deleteBtn}
-                                            onMouseOver={(e) => e.target.style.background = '#ff444430'}
-                                            onMouseOut={(e) => e.target.style.background = 'transparent'}
-                                        >
-                                            Delete
-                                        </button>
+                                        {/* 👇 SECURITY: Hide Delete Button for Sales */}
+                                        {!isReadOnly ? (
+                                            <button 
+                                                onClick={() => handleDeleteTrigger(t.id)} 
+                                                style={styles.deleteBtn}
+                                                onMouseOver={(e) => e.target.style.background = '#ff444430'}
+                                                onMouseOut={(e) => e.target.style.background = 'transparent'}
+                                            >
+                                                Delete
+                                            </button>
+                                        ) : (
+                                            <span style={{fontSize: '16px', opacity: 0.5, cursor: 'not-allowed'}} title="Read Only">🔒</span>
+                                        )}
+                                        {/* 👆 End Security Check */}
                                     </td>
                                 </tr>
                             ))}
@@ -282,7 +296,6 @@ const TenderSubmission = () => {
                 </div>
             </div>
 
-            {/* CSS Fixes */}
             <style jsx>{`
                 .hover-row:hover {
                     background-color: #252525 !important;

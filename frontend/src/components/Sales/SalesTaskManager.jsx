@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-// import * as XLSX from 'xlsx'; // ❌ Build error rokne ke liye comment kiya hai
-import { toast } from 'react-hot-toast';
+import { toast, Toaster } from 'react-hot-toast';
 
 // --- MODAL Component (Internal) ---
 const FollowUpModal = ({ isOpen, onClose, task, updateTask, followUpData, setFollowUpData, styles }) => {
@@ -97,7 +96,12 @@ const SalesTaskManager = () => {
         date: '', lead_name: '', company: '', contact: '', task_type: 'Call', next_follow_up: '', status: 'Pending', remarks: '', follow_up_count: 0, priority: 'Medium'
     });
     
-    // MODAL States
+    // --- 🔒 SECURITY CHECK ---
+    // If the user is from the Tech team, they cannot edit Sales tasks.
+    const userRole = localStorage.getItem('role');
+    const isReadOnly = userRole === 'Tech'; 
+    // -------------------------
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentTask, setCurrentTask] = useState(null);
     const [followUpData, setFollowUpData] = useState({
@@ -107,7 +111,6 @@ const SalesTaskManager = () => {
         remarks: '',
     });
 
-    // ✅ FIXED URLS: Sahi domain + /api/ + trailing slash
     const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com";
     const API_URL = `${BASE_API_URL}/api/sales-tasks/`;
 
@@ -125,7 +128,6 @@ const SalesTaskManager = () => {
         try {
             const headers = getAuthHeaders();
             const response = await axios.get(API_URL, headers);
-            // Sorting Logic
             const sortedTasks = response.data.sort((a, b) => {
                 const priorityOrder = { 'High': 3, 'Medium': 2, 'Low': 1 };
                 return priorityOrder[b.priority] - priorityOrder[a.priority];
@@ -133,18 +135,17 @@ const SalesTaskManager = () => {
             setTasks(sortedTasks);
         } catch (error) { 
              const message = error.message.includes("Unauthorized") || error.response?.status === 401
-                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
-                : "Tasks fetch karne mein error";
+                ? "Unauthorized: Please log in first." 
+                : "Failed to fetch tasks.";
             toast.error(message);
         }
     };
 
     const handleSave = async () => {
-        if (!newTask.lead_name) { toast.error("Name Required!"); return; }
+        if (!newTask.lead_name) { toast.error("Lead Name is Required!"); return; }
         try {
             const headers = getAuthHeaders();
             const response = await axios.post(API_URL, newTask, headers);
-            // Add the new task and re-sort
             const newTasks = [...tasks, response.data];
             const sortedTasks = newTasks.sort((a, b) => {
                 const priorityOrder = { 'High': 3, 'Medium': 2, 'Low': 1 };
@@ -153,11 +154,11 @@ const SalesTaskManager = () => {
             setTasks(sortedTasks);
 
             setNewTask({ date: '', lead_name: '', company: '', contact: '', task_type: 'Call', next_follow_up: '', status: 'Pending', remarks: '', follow_up_count: 0, priority: 'Medium' });
-            toast.success("Task Assigned!", { icon: '📌' });
+            toast.success("Task Assigned Successfully!", { icon: '📌' });
         } catch (error) { 
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
-                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
-                : "Error saving task";
+                ? "Unauthorized: Please log in first." 
+                : "Error saving task.";
             toast.error(message);
         }
     };
@@ -196,10 +197,9 @@ const SalesTaskManager = () => {
             setCurrentTask(null);
         } catch (error) {
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
-                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
+                ? "Unauthorized: Please log in first." 
                 : "Error updating follow-up.";
             toast.error(message);
-            console.error("Error updating follow-up:", error);
         }
     };
 
@@ -227,8 +227,8 @@ const SalesTaskManager = () => {
                                 toast.success("Deleted Successfully! 🗑️");
                             } catch (error) {
                                 const message = error.message.includes("Unauthorized") || error.response?.status === 401
-                                    ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
-                                    : "Delete failed";
+                                    ? "Unauthorized: Please log in first." 
+                                    : "Delete failed.";
                                 toast.error(message);
                             }
                             toast.dismiss(t.id);
@@ -265,15 +265,9 @@ const SalesTaskManager = () => {
 
     const handleInputChange = (e) => setNewTask({ ...newTask, [e.target.name]: e.target.value });
 
-    // ❌ Export Disabled Temporarily
+    // ❌ Export Disabled
     const handleExport = () => {
-        toast.error("Export feature ke liye 'npm install xlsx' run karein.");
-        /*
-        const ws = XLSX.utils.json_to_sheet(tasks);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "SalesTasks");
-        XLSX.writeFile(wb, "Sales_Tasks.xlsx");
-        */
+        toast.error("Export feature requires 'npm install xlsx'.");
     };
 
     const getPriorityStyle = (priority) => {
@@ -292,7 +286,7 @@ const SalesTaskManager = () => {
     };
 
     const getStatusColor = (dueDate, status) => {
-        if (status === 'Done') return { backgroundColor: '#1f2a28' }; // Light green for Done
+        if (status === 'Done') return { backgroundColor: '#1f2a28' }; 
         if (!dueDate) return {};
 
         const today = new Date();
@@ -301,10 +295,10 @@ const SalesTaskManager = () => {
         due.setHours(0, 0, 0, 0);
 
         if (due < today) {
-            return { backgroundColor: 'rgba(255, 68, 68, 0.2)', borderLeft: '3px solid #ff4444' }; // Past due (Reddish)
+            return { backgroundColor: 'rgba(255, 68, 68, 0.2)', borderLeft: '3px solid #ff4444' }; 
         }
         if (due.getTime() === today.getTime()) {
-            return { backgroundColor: 'rgba(255, 187, 51, 0.2)', borderLeft: '3px solid #ffbb33' }; // Due today (Yellowish)
+            return { backgroundColor: 'rgba(255, 187, 51, 0.2)', borderLeft: '3px solid #ffbb33' }; 
         }
         return {};
     }
@@ -327,111 +321,124 @@ const SalesTaskManager = () => {
     };
 
     return (
-        <div style={styles.container}>
-            <div style={styles.header}>
-                <div style={styles.title}>Sales Task Manager 📞</div>
-                <div>
-                    <button style={styles.btnPrimary} onClick={handleSave}>+ Add Task</button>
-                    <button style={styles.btnSuccess} onClick={handleExport}>Export Excel</button>
+        <>
+            <Toaster position="top-right" toastOptions={{ duration: 5000 }} />
+            <div style={styles.container}>
+                <div style={styles.header}>
+                    <div style={styles.title}>Sales Task Manager 📞</div>
+                    <div>
+                        {/* 👇 SECURITY: Hide Add Task for Tech */}
+                        {!isReadOnly && <button style={styles.btnPrimary} onClick={handleSave}>+ Add Task</button>}
+                        <button style={styles.btnSuccess} onClick={handleExport}>Export Excel</button>
+                    </div>
                 </div>
-            </div>
 
-            <div style={styles.tableContainer}>
-                <table style={styles.table}>
-                    <thead>
-                        <tr>
-                            <th style={styles.th}>Date</th>
-                            <th style={styles.th}>Lead Name</th>
-                            <th style={styles.th}>Company</th>
-                            <th style={styles.th}>Contact</th>
-                            <th style={styles.th}>Task Type</th>
-                            <th style={styles.th}>Next Follow Up</th>
-                            <th style={styles.th}>Priority</th>
-                            <th style={styles.th}>Status</th>
-                            <th style={{...styles.th, textAlign: 'center'}}>Attempts</th>
-                            <th style={styles.th}>Remarks</th>
-                            <th style={styles.th}>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {/* New Task Input Row */}
-                        <tr style={{ background: '#2a2a2a' }}>
-                            <td style={styles.td}><input type="date" name="date" value={newTask.date} onChange={handleInputChange} style={styles.input} /></td>
-                            <td style={styles.td}><input type="text" name="lead_name" value={newTask.lead_name} onChange={handleInputChange} placeholder="Name" style={styles.input} /></td>
-                            <td style={styles.td}><input type="text" name="company" value={newTask.company} onChange={handleInputChange} placeholder="Company" style={styles.input} /></td>
-                            <td style={styles.td}><input type="text" name="contact" value={newTask.contact} onChange={handleInputChange} placeholder="Phone" style={styles.input} /></td>
-                            <td style={styles.td}>
-                                <select name="task_type" value={newTask.task_type} onChange={handleInputChange} style={styles.select}>
-                                    <option>Call</option><option>Visit</option><option>Email</option><option>Meeting</option>
-                                </select>
-                            </td>
-                            <td style={styles.td}><input type="date" name="next_follow_up" value={newTask.next_follow_up} onChange={handleInputChange} style={styles.input} /></td>
-                            <td style={styles.td}>
-                                <select name="priority" value={newTask.priority} onChange={handleInputChange} style={styles.select}>
-                                    <option value="High">High 🔥</option><option value="Medium">Medium ⚠️</option><option value="Low">Low 🟢</option>
-                                </select>
-                            </td>
-                            <td style={styles.td}>
-                                <select name="status" value={newTask.status} onChange={handleInputChange} style={styles.select}>
-                                    <option>Pending</option><option>Done</option><option>Rescheduled</option>
-                                </select>
-                            </td>
-                            <td style={{...styles.td, textAlign: 'center', color: '#555'}}>0</td>
-                            <td style={styles.td}><input type="text" name="remarks" value={newTask.remarks} onChange={handleInputChange} placeholder="..." style={styles.input} /></td>
-                            <td style={styles.td}><span style={{color: '#333'}}>📝</span></td>
-                        </tr>
-
-                        {/* Task List */}
-                        {tasks.map((t) => (
-                            <tr key={t.id} style={{ borderBottom: '1px solid #222', ...getStatusColor(t.next_follow_up, t.status) }} className="hover-row">
-                                <td style={styles.td}>{t.date}</td>
-                                <td style={{...styles.td, color: '#fff', fontWeight: 'bold'}}>{t.lead_name}</td>
-                                <td style={styles.td}>{t.company}</td>
-                                <td style={styles.td}>{t.contact}</td>
-                                <td style={{...styles.td, color: '#00ffccff'}}>{t.task_type}</td>
-                                <td style={styles.td}>{t.next_follow_up}</td>
-                                <td style={styles.td}>
-                                    <span style={{ ...styles.tag, ...getPriorityStyle(t.priority), padding: '3px 8px', borderRadius: '4px' }}>{t.priority}</span>
-                                </td>
-                                <td style={styles.td}>
-                                    <span style={{ ...styles.tag, ...getStatusStyle(t.status), padding: '3px 8px', borderRadius: '4px' }}>{t.status}</span>
-                                </td>
-                                <td style={{...styles.td, textAlign: 'center'}}>
-                                    <span style={styles.countBadge}>{t.follow_up_count}</span>
-                                    {/* Button opens modal */}
-                                    <button style={styles.plusBtn} onClick={() => handleFollowUpClick(t)} title="Add Follow-up">+</button>
-                                </td>
-                                <td style={styles.td}>{t.remarks}</td>
-                                <td style={styles.td}><button onClick={() => handleDelete(t.id)} style={styles.deleteBtn}>Delete</button></td>
+                <div style={styles.tableContainer}>
+                    <table style={styles.table}>
+                        <thead>
+                            <tr>
+                                <th style={styles.th}>Date</th>
+                                <th style={styles.th}>Lead Name</th>
+                                <th style={styles.th}>Company</th>
+                                <th style={styles.th}>Contact</th>
+                                <th style={styles.th}>Task Type</th>
+                                <th style={styles.th}>Next Follow Up</th>
+                                <th style={styles.th}>Priority</th>
+                                <th style={styles.th}>Status</th>
+                                <th style={{...styles.th, textAlign: 'center'}}>Attempts</th>
+                                <th style={styles.th}>Remarks</th>
+                                <th style={styles.th}>Action</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>    
+                        </thead>
+                        <tbody>
+                            {/* 👇 SECURITY: Hide Input Row for Tech */}
+                            {!isReadOnly && (
+                                <tr style={{ background: '#2a2a2a' }}>
+                                    <td style={styles.td}><input type="date" name="date" value={newTask.date} onChange={handleInputChange} style={styles.input} /></td>
+                                    <td style={styles.td}><input type="text" name="lead_name" value={newTask.lead_name} onChange={handleInputChange} placeholder="Name" style={styles.input} /></td>
+                                    <td style={styles.td}><input type="text" name="company" value={newTask.company} onChange={handleInputChange} placeholder="Company" style={styles.input} /></td>
+                                    <td style={styles.td}><input type="text" name="contact" value={newTask.contact} onChange={handleInputChange} placeholder="Phone" style={styles.input} /></td>
+                                    <td style={styles.td}>
+                                        <select name="task_type" value={newTask.task_type} onChange={handleInputChange} style={styles.select}>
+                                            <option>Call</option><option>Visit</option><option>Email</option><option>Meeting</option>
+                                        </select>
+                                    </td>
+                                    <td style={styles.td}><input type="date" name="next_follow_up" value={newTask.next_follow_up} onChange={handleInputChange} style={styles.input} /></td>
+                                    <td style={styles.td}>
+                                        <select name="priority" value={newTask.priority} onChange={handleInputChange} style={styles.select}>
+                                            <option value="High">High 🔥</option><option value="Medium">Medium ⚠️</option><option value="Low">Low 🟢</option>
+                                        </select>
+                                    </td>
+                                    <td style={styles.td}>
+                                        <select name="status" value={newTask.status} onChange={handleInputChange} style={styles.select}>
+                                            <option>Pending</option><option>Done</option><option>Rescheduled</option>
+                                        </select>
+                                    </td>
+                                    <td style={{...styles.td, textAlign: 'center', color: '#555'}}>0</td>
+                                    <td style={styles.td}><input type="text" name="remarks" value={newTask.remarks} onChange={handleInputChange} placeholder="..." style={styles.input} /></td>
+                                    <td style={styles.td}><span style={{color: '#333'}}>📝</span></td>
+                                </tr>
+                            )}
+
+                            {/* Task List */}
+                            {tasks.map((t) => (
+                                <tr key={t.id} style={{ borderBottom: '1px solid #222', ...getStatusColor(t.next_follow_up, t.status) }} className="hover-row">
+                                    <td style={styles.td}>{t.date}</td>
+                                    <td style={{...styles.td, color: '#fff', fontWeight: 'bold'}}>{t.lead_name}</td>
+                                    <td style={styles.td}>{t.company}</td>
+                                    <td style={styles.td}>{t.contact}</td>
+                                    <td style={{...styles.td, color: '#00ffccff'}}>{t.task_type}</td>
+                                    <td style={styles.td}>{t.next_follow_up}</td>
+                                    <td style={styles.td}>
+                                        <span style={{ ...styles.tag, ...getPriorityStyle(t.priority), padding: '3px 8px', borderRadius: '4px' }}>{t.priority}</span>
+                                    </td>
+                                    <td style={styles.td}>
+                                        <span style={{ ...styles.tag, ...getStatusStyle(t.status), padding: '3px 8px', borderRadius: '4px' }}>{t.status}</span>
+                                    </td>
+                                    <td style={{...styles.td, textAlign: 'center'}}>
+                                        <span style={styles.countBadge}>{t.follow_up_count}</span>
+                                        {/* 👇 SECURITY: Hide Follow-up Plus Button for Tech */}
+                                        {!isReadOnly && (
+                                            <button style={styles.plusBtn} onClick={() => handleFollowUpClick(t)} title="Add Follow-up">+</button>
+                                        )}
+                                    </td>
+                                    <td style={styles.td}>{t.remarks}</td>
+                                    <td style={styles.td}>
+                                        {/* 👇 SECURITY: Hide Delete Button for Tech */}
+                                        {!isReadOnly ? (
+                                            <button onClick={() => handleDelete(t.id)} style={styles.deleteBtn}>Delete</button>
+                                        ) : (
+                                            <span style={{fontSize:'16px', opacity: 0.5}}>👁️ View Only</span>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>    
+                </div>
+
+            <style>{`
+                    .hover-row:hover { background-color: #252525 !important; }
+                    input:focus, select:focus { border-color: #00ffcc !important; box-shadow: 0 0 8px rgba(255, 0, 204, 0.3); }
+                    input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
+                    ::-webkit-scrollbar { width: 8px; height: 8px; }
+                    ::-webkit-scrollbar-track { background: #111; }
+                    ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+                    ${styles.btnPrimary}:hover, ${styles.btnSuccess}:hover { transform: scale(1.05); }
+                    ${styles.plusBtn}:active { transform: scale(0.9); }
+                `}</style>
+
+                <FollowUpModal 
+                    isOpen={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                    task={currentTask}
+                    updateTask={handleFollowUpUpdate}
+                    followUpData={followUpData}
+                    setFollowUpData={setFollowUpData}
+                    styles={styles}
+                />
             </div>
-
-            {/* Global Styles for better feel */}
-           <style>{`
-                .hover-row:hover { background-color: #252525 !important; }
-                input:focus, select:focus { border-color: #00ffcc !important; box-shadow: 0 0 8px rgba(255, 0, 204, 0.3); }
-                input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
-                ::-webkit-scrollbar { width: 8px; height: 8px; }
-                ::-webkit-scrollbar-track { background: #111; }
-                ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
-                ${styles.btnPrimary}:hover, ${styles.btnSuccess}:hover { transform: scale(1.05); }
-                ${styles.plusBtn}:active { transform: scale(0.9); }
-            `}</style>
-
-            {/* Follow-up Modal is added here */}
-            <FollowUpModal 
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                task={currentTask}
-                updateTask={handleFollowUpUpdate}
-                followUpData={followUpData}
-                setFollowUpData={setFollowUpData}
-                styles={styles}
-            />
-        </div>
+        </>
     );
 };
 

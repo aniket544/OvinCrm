@@ -81,11 +81,23 @@ class PaymentDetail(BaseDetailView):
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
 
 # 4. Sales Tasks (Follow Ups)
-class SalesTaskListCreate(BaseListCreateView):
-    serializer_class = SalesTaskSerializer
-    model = SalesTask
-    permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly] # <--- SECURITY ADDED
-    search_fields = ['lead_name', 'company', 'status']
+# views.py me TaskListCreate class ko dhoond aur ye code paste kar de:
+
+# 4. Tasks (Technical)
+class TaskListCreate(BaseListCreateView):
+    serializer_class = TaskSerializer
+    model = Task
+    permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly]
+    search_fields = ['task_name', 'company_name', 'status', 'priority']
+
+    # 👇👇👇 YE NYA LOGIC HAI (Magic Fix) 👇👇👇
+    def get_queryset(self):
+        # Agar user 'Tech' group ka hai ya Superuser hai -> Saare Tasks dikhao
+        if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
+            return Task.objects.all().order_by('-date') # Latest upar
+        
+        # Agar Sales wala hai -> Sirf wahi dikhao jo usne banaye hain
+        return Task.objects.filter(owner=self.request.user)
 
 class SalesTaskDetail(BaseDetailView):
     serializer_class = SalesTaskSerializer
@@ -97,43 +109,52 @@ class SalesTaskDetail(BaseDetailView):
 #       TECH TEAM VIEWS (Tech Edit, Sales Read-Only)
 # ==========================================
 
-# 5. Tasks (Technical)
+# 5. Tasks (Technical) - Ye humne pehle hi set kar diya tha
 class TaskListCreate(BaseListCreateView):
     serializer_class = TaskSerializer
     model = Task
-    permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly] # <--- SECURITY ADDED
+    permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly] 
     search_fields = ['task_name', 'company_name', 'status', 'priority']
 
-class TaskDetail(BaseDetailView):
-    serializer_class = TaskSerializer
-    model = Task
-    permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly]
+    def get_queryset(self):
+        # Tech user ya Superuser ko sab dikhega
+        if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
+            return Task.objects.all().order_by('-date')
+        # Sales wale ko sirf wahi dikhega jo usne 'Go Through' se bheja hai
+        return Task.objects.filter(owner=self.request.user)
 
-# 6. Tenders
+# 6. Tenders (UPDATED)
 class TenderListCreate(BaseListCreateView):
     serializer_class = TenderSerializer
     model = Tender
-    permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly] # <--- SECURITY ADDED
+    permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly] # <--- SECURITY
     search_fields = ['company', 'bid_no', 'status']
+
+    # 👇 Sales walo ko data dikhane ke liye ye zaroori hai
+    def get_queryset(self):
+        return Tender.objects.all().order_by('-date') # Sabko sab data dikhega (Read Only for Sales)
 
 class TenderDetail(BaseDetailView):
     serializer_class = TenderSerializer
     model = Tender
     permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly]
 
-# 7. Tech Data
+# 7. Tech Data / Customer Data (UPDATED)
 class TechDataListCreate(BaseListCreateView):
     serializer_class = TechDataSerializer
     model = TechData
-    permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly] # <--- SECURITY ADDED
+    permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly] # <--- SECURITY
     search_fields = ['company', 'machine', 'serial']
+
+    # 👇 Sales walo ko data dikhane ke liye ye zaroori hai
+    def get_queryset(self):
+        return TechData.objects.all().order_by('-id') # Sabko sab data dikhega
 
 class TechDataDetail(BaseDetailView):
     serializer_class = TechDataSerializer
     model = TechData
     permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly]
-
-
+    
 # ==========================================
 #       CUSTOM LOGIC (Magic 🪄)
 # ==========================================

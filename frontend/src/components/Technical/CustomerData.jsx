@@ -1,19 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-// import * as XLSX from 'xlsx'; // ❌ Build error rokne ke liye comment kiya hai
+import * as XLSX from 'xlsx'; // ❌ Build error rokne ke liye comment kiya hai
 import { toast, Toaster } from 'react-hot-toast'; 
 
 const CustomerData = () => {
     const [data, setData] = useState([]);
     const [newData, setNewData] = useState({
-        company: '', machine: '', serial: '', warranty: '', service_due: '', status: 'Active'
+        name: '', machine: '', serial: '', warranty: '', service_due: '', status: 'Active'
     });
 
-    // ✅ FIXED URL: Correct domain, added /api/customers/, trailing slash
+    // --- 🔒 SECURITY CHECK (Added) ---
+    // Agar banda Sales team se hai, toh wo Technical Customer Data ko Edit/Delete nahi kar sakta
+    const userRole = localStorage.getItem('role');
+    const isReadOnly = userRole === 'Sales'; 
+    // ---------------------------------
+
+    // ✅ FIXED URL
     const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com";
     const API_URL = `${BASE_API_URL}/api/customers/`;
 
-    // FIX 2: Check for token and throw error if missing
     const getAuthHeaders = () => {
         const token = localStorage.getItem('access_token');
         if (!token) {
@@ -34,28 +39,28 @@ const CustomerData = () => {
         } catch (error) {
             console.error("Fetch error:", error);
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
-                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
-                : "डेटा लोड करने में विफल। (Failed to load data.)";
+                ? "Unauthorized: Please log in first." 
+                : "Failed to load data.";
             toast.error(message);
         }
     };
 
     const handleSave = async () => {
-        if (!newData.company.trim()) {
-            toast.error("Company ka naam zaroori hai");
+        if (!newData.name.trim()) {
+            toast.error("Company Name is Required!");
             return;
         }
         try {
             const headers = getAuthHeaders();
             const response = await axios.post(API_URL, newData, headers);
             setData(prev => [...prev, response.data]);
-            setNewData({ company: '', machine: '', serial: '', warranty: '', service_due: '', status: 'Active' });
-            toast.success("Technical Data save ho gaya!");
+            setNewData({ name: '', machine: '', serial: '', warranty: '', service_due: '', status: 'Active' });
+            toast.success("Technical Data Saved!");
         } catch (error) {
             console.error("Save error:", error.response?.data);
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
-                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
-                : "डेटा सेव करने में एरर। (Error saving data.)";
+                ? "Unauthorized: Please log in first." 
+                : "Error saving data.";
             toast.error(message);
         }
     };
@@ -66,11 +71,11 @@ const CustomerData = () => {
             const headers = getAuthHeaders();
             await axios.delete(`${API_URL}${id}/`, headers);
             setData(prev => prev.filter(d => d.id !== id));
-            toast.success("Record delete ho gaya!", { icon: 'Success' });
+            toast.success("Record Deleted Successfully!", { icon: 'Success' });
         } catch (error) {
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
-                ? "कृपया पहले लॉगिन करें। (Please log in first.)" 
-                : "डिलीट करने में विफल। (Delete failed.)";
+                ? "Unauthorized: Please log in first." 
+                : "Delete failed.";
             toast.error(message);
         }
     };
@@ -79,7 +84,7 @@ const CustomerData = () => {
         toast((t) => (
             <div style={{ padding: '15px', textAlign: 'center' }}>
                 <p style={{ margin: '0 0 15px', color: '#fff', fontWeight: 'bold' }}>
-                    Is record ko hamesha ke liye delete karna hai?
+                    Permanently delete this record?
                 </p>
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
                     <button
@@ -97,7 +102,7 @@ const CustomerData = () => {
                             cursor: 'pointer'
                         }}
                     >
-                        Haan, delete karo 
+                        Yes, Delete
                     </button>
                     <button
                         onClick={() => toast.dismiss(t.id)}
@@ -110,7 +115,7 @@ const CustomerData = () => {
                             cursor: 'pointer'
                         }}
                     >
-                        Cancel karo 
+                        Cancel
                     </button>
                 </div>
             </div>
@@ -124,17 +129,16 @@ const CustomerData = () => {
         setNewData({ ...newData, [e.target.name]: e.target.value });
     };
 
-    // ❌ Export Disabled Temporarily (Build fix karne ke liye)
     const handleExport = () => {
         if (data.length === 0) {
-            toast.error("Export ke liye data nahi hai!");
+            toast.error("No data to export!");
             return;
         }
 
-        toast.error("Export feature ke liye 'npm install xlsx' run karein.");
-        /*
+        // toast.error("Export feature requires xlsx package.");
+        
         const exportData = data.map(d => ({
-            'Company': d.company,
+            'Company': d.name, // Fixed: Using 'name' instead of 'company' to match state
             'Machine': d.machine,
             'Serial No.': d.serial,
             'Warranty Expiry': d.warranty || '-',
@@ -149,8 +153,8 @@ const CustomerData = () => {
         XLSX.utils.book_append_sheet(wb, ws, "Customer_Data");
         XLSX.writeFile(wb, "Technical_Customer_Data.xlsx");
 
-        toast.success("Excel exported!");
-        */
+        toast.success("Excel exported successfully!");
+        
     };
 
     const styles = {
@@ -176,7 +180,11 @@ const CustomerData = () => {
                 <div style={styles.header}>
                     <h1 style={styles.title}>Technical Customer Data</h1>
                     <div>
-                        <button style={styles.btnPrimary} onClick={handleSave}>+ Add Record</button>
+                        {/* 👇 SECURITY: Hide Save Button for Sales */}
+                        {!isReadOnly && (
+                            <button style={styles.btnPrimary} onClick={handleSave}>+ Add Record</button>
+                        )}
+                        {/* 👆 End Security Check */}
                         <button style={styles.btnSuccess} onClick={handleExport}>Export Excel</button>
                     </div>
                 </div>
@@ -195,25 +203,29 @@ const CustomerData = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr style={{ background: '#2a2a2a' }}>
-                                <td style={styles.td}><input type="text" name="company" value={newData.company} onChange={handleInputChange} placeholder="Company" style={styles.input} /></td>
-                                <td style={styles.td}><input type="text" name="machine" value={newData.machine} onChange={handleInputChange} placeholder="Machine" style={styles.input} /></td>
-                                <td style={styles.td}><input type="text" name="serial" value={newData.serial} onChange={handleInputChange} placeholder="SN-000" style={styles.input} /></td>
-                                <td style={styles.td}><input type="date" name="warranty" value={newData.warranty} onChange={handleInputChange} style={styles.input} /></td>
-                                <td style={styles.td}><input type="date" name="service_due" value={newData.service_due} onChange={handleInputChange} style={styles.input} /></td>
-                                <td style={styles.td}>
-                                    <select name="status" value={newData.status} onChange={handleInputChange} style={styles.select}>
-                                        <option value="Active">Active</option>
-                                        <option value="Expired">Expired</option>
-                                        <option value="Servicing">Servicing</option>
-                                    </select>
-                                </td>
-                                <td style={styles.td}></td>
-                            </tr>
+                            {/* 👇 SECURITY: Hide Input Row for Sales */}
+                            {!isReadOnly && (
+                                <tr style={{ background: '#2a2a2a' }}>
+                                    <td style={styles.td}><input type="text" name="name" value={newData.name} onChange={handleInputChange} placeholder="Company" style={styles.input} /></td>
+                                    <td style={styles.td}><input type="text" name="machine" value={newData.machine} onChange={handleInputChange} placeholder="Machine" style={styles.input} /></td>
+                                    <td style={styles.td}><input type="text" name="serial" value={newData.serial} onChange={handleInputChange} placeholder="SN-000" style={styles.input} /></td>
+                                    <td style={styles.td}><input type="date" name="warranty" value={newData.warranty} onChange={handleInputChange} style={styles.input} /></td>
+                                    <td style={styles.td}><input type="date" name="service_due" value={newData.service_due} onChange={handleInputChange} style={styles.input} /></td>
+                                    <td style={styles.td}>
+                                        <select name="status" value={newData.status} onChange={handleInputChange} style={styles.select}>
+                                            <option value="Active">Active</option>
+                                            <option value="Expired">Expired</option>
+                                            <option value="Servicing">Servicing</option>
+                                        </select>
+                                    </td>
+                                    <td style={styles.td}>🛠️</td>
+                                </tr>
+                            )}
+                            {/* 👆 End Security Check */}
 
                             {data.map((d) => (
                                 <tr key={d.id}>
-                                    <td style={{...styles.td, color: '#fff', fontWeight: 'bold'}}>{d.company}</td>
+                                    <td style={{...styles.td, color: '#fff', fontWeight: 'bold'}}>{d.name}</td>
                                     <td style={styles.td}>{d.machine || '-'}</td>
                                     <td style={{...styles.td, color: '#00ffcc', fontWeight: 'bold'}}>{d.serial}</td>
                                     <td style={styles.td}>{d.warranty || '-'}</td>
@@ -232,9 +244,15 @@ const CustomerData = () => {
                                         </span>
                                     </td>
                                     <td style={styles.td}>
-                                        <button onClick={() => handleDeleteTrigger(d.id)} style={styles.deleteBtn}>
-                                            Delete
-                                        </button>
+                                        {/* 👇 SECURITY: Hide Delete Button for Sales */}
+                                        {!isReadOnly ? (
+                                            <button onClick={() => handleDeleteTrigger(d.id)} style={styles.deleteBtn}>
+                                                Delete
+                                            </button>
+                                        ) : (
+                                            <span style={{fontSize: '16px', opacity: 0.5, cursor: 'not-allowed'}} title="Read Only">🔒</span>
+                                        )}
+                                        {/* 👆 End Security Check */}
                                     </td>
                                 </tr>
                             ))}
@@ -243,7 +261,6 @@ const CustomerData = () => {
                 </div>
             </div>
 
-            {/* FIX 1: Removed redundant 'jsx' prop that caused React warning. */}
             <style>{`
                 input[type="date"]::-webkit-calendar-picker-indicator {
                     filter: invert(1);
