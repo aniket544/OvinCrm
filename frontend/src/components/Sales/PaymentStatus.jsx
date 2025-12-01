@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-// import * as XLSX from "xlsx"; // ❌ Build error rokne ke liye comment kiya hai
 import { toast, Toaster } from "react-hot-toast";
-// import { IoLogoWhatsapp } from "react-icons/io5"; // ❌ Missing library
-// import "./payment.css"; // ❌ Missing file
 
 const PaymentStatus = () => {
   const [payments, setPayments] = useState([]);
@@ -35,10 +32,16 @@ const PaymentStatus = () => {
     remark: "",
   });
 
-  // ✅ FIXED URLS: Sahi domain + /api/ + trailing slash
+  // --- 🔒 SECURITY CHECK ---
+  const userRole = localStorage.getItem('role');
+  // Agar Tech wala hai, toh Payments Read-Only rahega
+  const isReadOnly = userRole === 'Tech'; 
+  // -------------------------
+
   const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com";
-  const API_URL = `${BASE_API_URL}/api/payments/`; // Fixed
-  const TASK_API_URL = `${BASE_API_URL}/api/tasks/`; // Fixed
+  const API_URL = `${BASE_API_URL}/api/payments/`; 
+  
+  // ❌ OLD URL (Block ho raha tha): const TASK_API_URL = `${BASE_API_URL}/api/tasks/`; 
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem("access_token");
@@ -160,10 +163,10 @@ const PaymentStatus = () => {
 
   // === WHATSAPP SIMPLE OPEN ===
   const handleCreateTaskWhatsApp = () => {
-    // Sirf WhatsApp khul jayega (Web/App), koi data nahi jayega
     window.open("https://web.whatsapp.com/", "_blank");
   };
 
+  // 👇👇👇 MAIN FIX HERE 👇👇👇
   const handleSubmitToTask = async () => {
     if (!modalData.task_name.trim()) {
       toast.error("Task Description is required!");
@@ -171,26 +174,31 @@ const PaymentStatus = () => {
     }
 
     const taskData = {
-      company_name: modalData.company_name.trim(),
+      // NOTE: 'company_name' backend automatically payment record se utha lega
       task_name: modalData.task_name.trim(),
       client_name: modalData.client_name || null,
       client_id: modalData.client_id || null,
       gem_id: modalData.gem_id || null,
       gem_password: modalData.gem_password || null,
       priority: modalData.priority,
-      payment: selectedPaymentId,
     };
 
     try {
-      await axios.post(TASK_API_URL, taskData, getAuthHeaders());
-      toast.success("Task sent to Tech Team!");
+      // ✅ FIX: Ab hum 'go-thru' wali special API hit kar rahe hain
+      // Ye API "Sales" walon ke liye khuli hai (IsAuthenticated)
+      const GO_THRU_URL = `${BASE_API_URL}/api/payments/${selectedPaymentId}/go-thru/`;
+      
+      await axios.post(GO_THRU_URL, taskData, getAuthHeaders());
+      
+      toast.success("Task sent to Tech Team successfully!");
       setShowModal(false);
-      fetchPayments();
+      // fetchPayments(); // Refresh ki zaroorat nahi hai waise
     } catch (error) {
       console.error("Task creation failed:", error.response?.data);
-      toast.error("Failed to send task!");
+      toast.error("Failed to send task! (Check Permissions)");
     }
   };
+  // 👆👆👆 END FIX 👆👆👆
 
   // === DELETE WITH CONFIRMATION ===
   const handleDeleteTrigger = (id) => {
@@ -250,41 +258,9 @@ const PaymentStatus = () => {
     }
   };
 
-  // === EXPORT TO EXCEL ===
   const handleExport = () => {
     if (payments.length === 0) return toast.error("No data to export!");
-    toast.error("Export feature ke liye 'npm install xlsx' karein.");
-    /*
-    const exportData = payments.map((p) => ({
-      "Company Name": p.company,
-      "SO No.": p.so_no || "-",
-      "Total Amount (₹)": parseFloat(p.amount || 0),
-      "Advance (₹)": parseFloat(p.advance || 0),
-      "Remaining (₹)": parseFloat(p.remaining || 0),
-      Invoice: p.invoice || "-",
-      Remark: p.remark || "-",
-      Date: new Date(p.created_at || Date.now()).toLocaleDateString("en-IN"),
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    ws["!cols"] = [
-      { wch: 25 },
-      { wch: 15 },
-      { wch: 18 },
-      { wch: 18 },
-      { wch: 18 },
-      { wch: 15 },
-      { wch: 25 },
-      { wch: 15 },
-    ];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Payments");
-    const today = new Date().toLocaleDateString("en-IN").replace(/\//g, "-");
-    XLSX.writeFile(wb, `Payment_Status_${today}.xlsx`);
-
-    toast.success("Excel exported successfully!");
-    */
+    toast.error("Export feature requires xlsx package.");
   };
 
   // === NEW PAYMENT HANDLERS ===
@@ -459,9 +435,12 @@ const PaymentStatus = () => {
         <div style={styles.header}>
           <div style={styles.title}>Payment Status</div>
           <div>
-            <button style={styles.btnPrimary} onClick={handleSave}>
-              + Record Payment
-            </button>
+            {/* Security Check: Tech wale ko Record Payment nahi dikhna chahiye */}
+            {!isReadOnly && (
+                <button style={styles.btnPrimary} onClick={handleSave}>
+                + Record Payment
+                </button>
+            )}
             <button style={styles.btnSuccess} onClick={handleExport}>
               Export Excel
             </button>
@@ -489,7 +468,8 @@ const PaymentStatus = () => {
               </tr>
             </thead>
             <tbody>
-              {/* New Row */}
+              {/* Security Check: Input Row Hide for Tech */}
+              {!isReadOnly && (
               <tr style={{ background: "#2a2a2a" }}>
                 <td style={styles.td}>
                   <input
@@ -560,6 +540,7 @@ const PaymentStatus = () => {
                 </td>
                 <td style={styles.td}></td>
               </tr>
+              )}
 
               {payments.map((p) => (
                 <tr key={p.id}>
@@ -607,24 +588,37 @@ const PaymentStatus = () => {
                       </div>
                     ) : (
                       <div style={{ display: "flex", gap: "5px" }}>
-                        <button
-                          style={styles.editBtn}
-                          onClick={() => handleEditStart(p)}
-                        >
-                          Edit
-                        </button>
+                        
+                        {/* Go Through sabko dikhega (ya sirf Sales ko, tumhari marzi) */}
+                        {/* Logic: Tech wala bhi dekh le par wo task create karega to wo 'Tech' group ka member hai, allowed hai */}
+                        {/* Better: Allow Go Through for everyone, backend will handle creation logic */}
+                        
+                        {!isReadOnly && (
+                            <>
+                                <button
+                                style={styles.editBtn}
+                                onClick={() => handleEditStart(p)}
+                                >
+                                Edit
+                                </button>
+                                
+                                <button
+                                style={styles.deleteBtn}
+                                onClick={() => handleDeleteTrigger(p.id)}
+                                >
+                                Delete
+                                </button>
+                            </>
+                        )}
+
+                        {/* Go Through button is special, usually Sales initiates it */}
                         <button
                           style={styles.goThruBtn}
                           onClick={() => handleGoThroughClick(p)}
                         >
                           Go Through
                         </button>
-                        <button
-                          style={styles.deleteBtn}
-                          onClick={() => handleDeleteTrigger(p.id)}
-                        >
-                          Delete
-                        </button>
+                        
                       </div>
                     )}
                   </td>
