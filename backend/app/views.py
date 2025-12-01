@@ -25,7 +25,7 @@ class BaseListCreateView(generics.ListCreateAPIView):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     
     def get_queryset(self):
-        # Admin sabka data dekh sakta hai, User sirf apna (ya group logic handle karega permissions.py)
+        # Admin sabka data dekh sakta hai
         if self.request.user.is_superuser:
             return self.model.objects.all()
         return self.model.objects.filter(owner=self.request.user)
@@ -48,19 +48,19 @@ class BaseDetailView(generics.RetrieveUpdateDestroyAPIView):
 class LeadListCreate(BaseListCreateView):
     serializer_class = LeadSerializer
     model = Lead
-    permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly] # <--- SECURITY ADDED
+    permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
     search_fields = ['name', 'company', 'status', 'contact']
 
 class LeadDetail(BaseDetailView):
     serializer_class = LeadSerializer
     model = Lead
-    permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly] # <--- SECURITY ADDED
+    permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
 
 # 2. Customers
 class CustomerListCreate(BaseListCreateView):
     serializer_class = CustomerSerializer
     model = Customer
-    permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly] # <--- SECURITY ADDED
+    permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
     search_fields = ['name', 'company', 'email']
 
 class CustomerDetail(BaseDetailView):
@@ -72,7 +72,7 @@ class CustomerDetail(BaseDetailView):
 class PaymentListCreate(BaseListCreateView):
     serializer_class = PaymentSerializer
     model = Payment
-    permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly] # <--- SECURITY ADDED
+    permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
     search_fields = ['company', 'invoice', 'so_no']
 
 class PaymentDetail(BaseDetailView):
@@ -81,23 +81,11 @@ class PaymentDetail(BaseDetailView):
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
 
 # 4. Sales Tasks (Follow Ups)
-# views.py me TaskListCreate class ko dhoond aur ye code paste kar de:
-
-# 4. Tasks (Technical)
-class TaskListCreate(BaseListCreateView):
-    serializer_class = TaskSerializer
-    model = Task
-    permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly]
-    search_fields = ['task_name', 'company_name', 'status', 'priority']
-
-    # 👇👇👇 YE NYA LOGIC HAI (Magic Fix) 👇👇👇
-    def get_queryset(self):
-        # Agar user 'Tech' group ka hai ya Superuser hai -> Saare Tasks dikhao
-        if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
-            return Task.objects.all().order_by('-date') # Latest upar
-        
-        # Agar Sales wala hai -> Sirf wahi dikhao jo usne banaye hain
-        return Task.objects.filter(owner=self.request.user)
+class SalesTaskListCreate(BaseListCreateView):
+    serializer_class = SalesTaskSerializer
+    model = SalesTask
+    permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
+    search_fields = ['lead_name', 'company', 'status']
 
 class SalesTaskDetail(BaseDetailView):
     serializer_class = SalesTaskSerializer
@@ -109,11 +97,11 @@ class SalesTaskDetail(BaseDetailView):
 #       TECH TEAM VIEWS (Tech Edit, Sales Read-Only)
 # ==========================================
 
-# 5. Tasks (Technical) - Ye humne pehle hi set kar diya tha
+# 5. Tasks (Technical)
 class TaskListCreate(BaseListCreateView):
     serializer_class = TaskSerializer
     model = Task
-    permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly] 
+    permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly]
     search_fields = ['task_name', 'company_name', 'status', 'priority']
 
     def get_queryset(self):
@@ -123,30 +111,35 @@ class TaskListCreate(BaseListCreateView):
         # Sales wale ko sirf wahi dikhega jo usne 'Go Through' se bheja hai
         return Task.objects.filter(owner=self.request.user)
 
-# 6. Tenders (UPDATED)
+# 👇👇 YE CLASS MISSING THI, ISLIYE ERROR AAYA 👇👇
+class TaskDetail(BaseDetailView):
+    serializer_class = TaskSerializer
+    model = Task
+    permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly]
+# 👆👆
+
+# 6. Tenders
 class TenderListCreate(BaseListCreateView):
     serializer_class = TenderSerializer
     model = Tender
-    permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly] # <--- SECURITY
+    permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly]
     search_fields = ['company', 'bid_no', 'status']
 
-    # 👇 Sales walo ko data dikhane ke liye ye zaroori hai
     def get_queryset(self):
-        return Tender.objects.all().order_by('-date') # Sabko sab data dikhega (Read Only for Sales)
+        return Tender.objects.all().order_by('-date') # Sabko sab data dikhega
 
 class TenderDetail(BaseDetailView):
     serializer_class = TenderSerializer
     model = Tender
     permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly]
 
-# 7. Tech Data / Customer Data (UPDATED)
+# 7. Tech Data
 class TechDataListCreate(BaseListCreateView):
     serializer_class = TechDataSerializer
     model = TechData
-    permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly] # <--- SECURITY
+    permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly]
     search_fields = ['company', 'machine', 'serial']
 
-    # 👇 Sales walo ko data dikhane ke liye ye zaroori hai
     def get_queryset(self):
         return TechData.objects.all().order_by('-id') # Sabko sab data dikhega
 
@@ -154,14 +147,15 @@ class TechDataDetail(BaseDetailView):
     serializer_class = TechDataSerializer
     model = TechData
     permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly]
-    
+
+
 # ==========================================
 #       CUSTOM LOGIC (Magic 🪄)
 # ==========================================
 
 # 1. Convert Lead -> Payment
 class ConvertLeadToPayment(APIView):
-    permission_classes = [permissions.IsAuthenticated] # Ispe restriction nahi lagayi taki process smooth rahe
+    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, pk):
         try:
@@ -195,7 +189,7 @@ class ConvertLeadToPayment(APIView):
 
 # 2. Go Through: Payment -> Task (System Task)
 class CreateTaskFromPayment(APIView):
-    permission_classes = [permissions.IsAuthenticated] # Ye Sales wale use karenge Tech ko task bhejne ke liye
+    permission_classes = [permissions.IsAuthenticated] 
 
     def post(self, request, pk):
         try:
