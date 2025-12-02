@@ -8,10 +8,8 @@ const TaskManager = () => {
     const today = new Date().toISOString().split('T')[0];
 
     // --- 🔒 SECURITY CHECK ---
-    // If the user is from the Sales team, they cannot create/delete tasks directly.
-    // They effectively have "Read-Only" access to this page.
     const userRole = localStorage.getItem('role');
-    const isReadOnly = userRole === 'Sales'; 
+    const isReadOnly = userRole === 'Sales'; // Sales wale edit nahi kar payenge
     // -------------------------
 
     const [newTask, setNewTask] = useState({
@@ -34,7 +32,7 @@ const TaskManager = () => {
     const fetchTasks = async () => {
         try {
             const response = await axios.get(API_URL, getAuthHeaders());
-            // Sorting: High Priority & Pending tasks first
+            // Sorting Logic
             const sortedTasks = response.data.sort((a, b) => {
                 const priorityOrder = { 'High': 3, 'Medium': 2, 'Low': 1 };
                 return priorityOrder[b.priority] - priorityOrder[a.priority];
@@ -49,13 +47,30 @@ const TaskManager = () => {
         }
     };
 
+    // 👇👇👇 STATUS UPDATE FUNCTION 👇👇👇
+    const handleStatusUpdate = async (id, newStatus) => {
+        try {
+            const headers = getAuthHeaders();
+            await axios.patch(`${API_URL}${id}/`, { status: newStatus }, headers);
+            
+            // Optimistic UI Update
+            setTasks(prevTasks => prevTasks.map(t => 
+                t.id === id ? { ...t, status: newStatus } : t
+            ));
+            
+            toast.success(`Status updated to ${newStatus}`);
+        } catch (error) {
+            console.error("Update error:", error);
+            toast.error("Failed to update status.");
+        }
+    };
+    // 👆👆👆
+
     const handleSave = async () => {
         if (!newTask.company_name) { toast.error("Company Name is Required!"); return; }
         try {
             const response = await axios.post(API_URL, newTask, getAuthHeaders());
             const newTasks = [...tasks, response.data];
-            
-            // Re-sort after adding
             const sortedTasks = newTasks.sort((a, b) => {
                 const priorityOrder = { 'High': 3, 'Medium': 2, 'Low': 1 };
                 return priorityOrder[b.priority] - priorityOrder[a.priority];
@@ -65,7 +80,6 @@ const TaskManager = () => {
             setNewTask({ date: today, company_name: '', client_name: '', client_id: '', gem_id: '', gem_password: '', task_name: '', priority: 'Medium', status: 'Pending' });
             toast.success("Task Added Successfully!", { icon: '📌' });
         } catch (error) { 
-            console.error("Error saving:", error.response?.data); 
             toast.error("Failed to save task."); 
         }
     };
@@ -75,69 +89,42 @@ const TaskManager = () => {
             (t) => (
                 <div style={{ padding: "10px" }}>
                     <p style={{ marginBottom: "10px", color: "#fff" }}>Are you sure you want to delete?</p>
-                    
                     <button
-                        style={{
-                            background: "red",
-                            color: "white",
-                            padding: "5px 10px",
-                            borderRadius: "5px",
-                            marginRight: "10px",
-                            border: "none",
-                            cursor: "pointer"
-                        }}
+                        style={{ background: "red", color: "white", padding: "5px 10px", borderRadius: "5px", marginRight: "10px", border: "none", cursor: "pointer" }}
                         onClick={async () => {
                             try {
                                 await axios.delete(`${API_URL}${id}/`, getAuthHeaders());
                                 setTasks(tasks.filter((t) => t.id !== id));
                                 toast.success("Deleted Successfully! 🗑️");
-                            } catch (error) {
-                                toast.error("Delete failed.");
-                            }
+                            } catch (error) { toast.error("Delete failed."); }
                             toast.dismiss(t.id);
                         }}
-                    >
-                        Yes
-                    </button>
-
-                    <button
-                        style={{
-                            background: "#333",
-                            color: "white",
-                            padding: "5px 10px",
-                            borderRadius: "5px",
-                            border: "none",
-                            cursor: "pointer"
-                        }}
-                        onClick={() => toast.dismiss(t.id)}
-                    >
-                        No
-                    </button>
+                    >Yes</button>
+                    <button style={{ background: "#333", color: "white", padding: "5px 10px", borderRadius: "5px", border: "none", cursor: "pointer" }} onClick={() => toast.dismiss(t.id)}>No</button>
                 </div>
             ),
-            {
-                duration: 5000,
-                style: {
-                    background: "#1a1a1a",
-                    color: "#fff",
-                    border: "1px solid #333"
-                },
-            }
+            { duration: 5000, style: { background: "#1a1a1a", color: "#fff", border: "1px solid #333" } }
         );
     };
 
     const handleInputChange = (e) => setNewTask({ ...newTask, [e.target.name]: e.target.value });
 
     const handleExport = () => {
-        if (tasks.length === 0) {
-            toast.error("No tasks to export.");
-            return;
-        }
+        if (tasks.length === 0) { toast.error("No tasks to export."); return; }
         const ws = XLSX.utils.json_to_sheet(tasks);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Tasks");
         XLSX.writeFile(wb, "Task_Manager.xlsx");
         toast.success("Excel exported successfully!");
+    };
+
+    const getPriorityStyle = (priority) => {
+        switch (priority) {
+            case 'High': return { color: '#ff4444', fontWeight: 'bold' };
+            case 'Medium': return { color: '#ffbb33', fontWeight: 'bold' };
+            case 'Low': return { color: '#00c3ff', fontWeight: 'bold' };
+            default: return { color: '#bbb' };
+        }
     };
 
     // Styles
@@ -153,6 +140,7 @@ const TaskManager = () => {
         td: { padding: '12px 15px', borderBottom: '1px solid #333', color: '#bbb', fontSize: '14px' },
         input: { width: '100%', background: '#111', border: '1px solid #444', color: '#fff', padding: '8px', borderRadius: '4px', outline: 'none' },
         select: { width: '100%', background: '#111', border: '1px solid #444', color: '#fff', padding: '8px', borderRadius: '4px', outline: 'none' },
+        statusSelect: { background: '#111', border: '1px solid #00ffcc', color: '#fff', padding: '5px', borderRadius: '4px', outline: 'none', fontSize: '13px', cursor: 'pointer' },
         deleteBtn: { background: 'transparent', border: '1px solid #ff4444', color: '#ff4444', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }
     };
 
@@ -161,11 +149,7 @@ const TaskManager = () => {
             <div style={styles.header}>
                 <div style={styles.title}>Task Manager (Technical)</div>
                 <div>
-                    {/* 👇 SECURITY: Hide "Add Task" for Sales users */}
-                    {!isReadOnly && (
-                        <button style={styles.btnPrimary} onClick={handleSave}>+ Add Task</button>
-                    )}
-                    {/* 👆 End Security Check */}
+                    {!isReadOnly && <button style={styles.btnPrimary} onClick={handleSave}>+ Add Task</button>}
                     <button style={styles.btnSuccess} onClick={handleExport}>Export Excel</button>
                 </div>
             </div>
@@ -174,7 +158,7 @@ const TaskManager = () => {
                 <table style={styles.table}>
                     <thead>
                         <tr>
-                            <th style={styles.th}>Date (Auto)</th>
+                            <th style={styles.th}>Date</th>
                             <th style={styles.th}>Company Name</th>
                             <th style={styles.th}>Client Name</th>
                             <th style={styles.th}>Client ID</th>
@@ -188,7 +172,6 @@ const TaskManager = () => {
                     </thead>
 
                     <tbody>
-                        {/* 👇 SECURITY: Hide Input Row for Sales users */}
                         {!isReadOnly && (
                             <tr style={{ background: '#2a2a2a' }}>
                                 <td style={styles.td}><input type="text" value={newTask.date} readOnly style={{...styles.input, color: '#00ffcc', fontWeight: 'bold', cursor: 'not-allowed'}} /></td>
@@ -198,7 +181,6 @@ const TaskManager = () => {
                                 <td style={styles.td}><input type="text" name="gem_id" value={newTask.gem_id} onChange={handleInputChange} placeholder="Gem ID" style={styles.input} /></td>
                                 <td style={styles.td}><input type="text" name="gem_password" value={newTask.gem_password} onChange={handleInputChange} placeholder="Password" style={styles.input} /></td>
                                 <td style={styles.td}><input type="text" name="task_name" value={newTask.task_name} onChange={handleInputChange} placeholder="Task" style={styles.input} /></td>
-
                                 <td style={styles.td}>
                                     <select name="priority" value={newTask.priority} onChange={handleInputChange} style={styles.select}>
                                         <option value="High">High</option>
@@ -206,7 +188,6 @@ const TaskManager = () => {
                                         <option value="Low">Low</option>
                                     </select>
                                 </td>
-
                                 <td style={styles.td}>
                                     <select name="status" value={newTask.status} onChange={handleInputChange} style={styles.select}>
                                         <option value="Pending">Pending</option>
@@ -214,11 +195,9 @@ const TaskManager = () => {
                                         <option value="Done">Done</option>
                                     </select>
                                 </td>
-
                                 <td style={styles.td} className="text-center">📝</td>
                             </tr>
                         )}
-                        {/* 👆 End Security Check */}
 
                         {tasks.map((t) => (
                             <tr key={t.id} style={{ borderBottom: '1px solid #222' }}>
@@ -231,36 +210,51 @@ const TaskManager = () => {
                                 <td style={{...styles.td, color: '#fff', fontWeight: 'bold'}}>{t.task_name}</td>
 
                                 <td style={styles.td}>
-                                    <span style={{ 
-                                        color: t.priority === 'High' ? '#ff4444' : t.priority === 'Medium' ? '#ffbb33' : '#00C851',
-                                        fontWeight: 'bold'
-                                    }}>
-                                        {t.priority}
-                                    </span>
+                                    <span style={getPriorityStyle(t.priority)}>{t.priority}</span>
                                 </td>
 
-                                <td style={styles.td}>{t.status}</td>
+                                {/* 👇👇👇 STATUS LOGIC 👇👇👇 */}
                                 <td style={styles.td}>
-                                    {/* 👇 SECURITY: Hide Delete Button for Sales users */}
                                     {!isReadOnly ? (
-                                        <button onClick={() => handleDelete(t.id)} style={styles.deleteBtn}>
-                                            Delete
-                                        </button>
+                                        // Tech ke liye Dropdown
+                                        <select 
+                                            value={t.status} 
+                                            onChange={(e) => handleStatusUpdate(t.id, e.target.value)}
+                                            style={{
+                                                ...styles.statusSelect,
+                                                borderColor: t.status === 'Done' ? '#00C851' : t.status === 'Pending' ? '#ffbb33' : '#0099ff'
+                                            }}
+                                        >
+                                            <option value="Pending">Pending</option>
+                                            <option value="In Progress">In Progress</option>
+                                            <option value="Done">Done</option>
+                                        </select>
                                     ) : (
-                                        <span style={{fontSize: '16px', opacity: 0.5, cursor: 'not-allowed'}} title="Read Only">🔒</span>
+                                        // Sales ke liye sirf Text
+                                        <span style={{
+                                            color: t.status === 'Done' ? '#00C851' : t.status === 'Pending' ? '#ffbb33' : '#0099ff',
+                                            fontWeight: 'bold'
+                                        }}>
+                                            {t.status}
+                                        </span>
                                     )}
-                                    {/* 👆 End Security Check */}
+                                </td>
+                                {/* 👆👆👆 */}
+
+                                <td style={styles.td}>
+                                    {!isReadOnly ? (
+                                        <button onClick={() => handleDelete(t.id)} style={styles.deleteBtn}>Delete</button>
+                                    ) : (
+                                        <span style={{fontSize:'16px', opacity: 0.5, cursor: 'not-allowed'}} title="Read Only">🔒</span>
+                                    )}
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
-
             <style>{`
-                input[type="date"]::-webkit-calendar-picker-indicator { 
-                    filter: invert(1); cursor: pointer; 
-                }
+                input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
             `}</style>
         </div>
     );
