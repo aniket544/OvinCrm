@@ -4,7 +4,6 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 urlpatterns = [
     # --- Authentication (Login/Token) ---
-    # Humne CustomLoginView use kiya hai taaki Role bhi mile
     path('token/', CustomLoginView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('register/', RegisterView.as_view(), name='register'),
@@ -12,6 +11,10 @@ urlpatterns = [
     # --- Leads ---
     path('leads/', LeadListCreate.as_view(), name='lead-list'),
     path('leads/<int:pk>/', LeadDetail.as_view(), name='lead-detail'),
+    
+    # 👇👇👇 NEW BULK IMPORT URL (Ye line add ki hai) 👇👇👇
+    path('leads/bulk-import/', LeadBulkImport.as_view(), name='lead-bulk-import'),
+    # 👆👆👆
 
     # --- Customers ---
     path('customers/', CustomerListCreate.as_view(), name='customer-list'),

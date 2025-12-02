@@ -434,7 +434,7 @@ const LeadManager = () => {
                         {!isReadOnly && (
                             <>
                                 <button style={styles.btnPrimary} onClick={handleSave}>+ Save</button>
-                                <input type="file" accept=".xlsx, .xls, .csv" ref={fileInputRef} style={{display: 'none'}} onChange={handleFileChange} />
+                                <input type="file" accept=".xlsx, .xls" ref={fileInputRef} style={{display: 'none'}} onChange={handleFileChange} />
                                 <button style={styles.btnImport} onClick={handleImportClick}>📥 Import</button>
                             </>
                         )}
@@ -480,7 +480,7 @@ const LeadManager = () => {
                                     </td>
                                     <td style={styles.td}>
                                         <select name="status" value={newLead.status} onChange={handleInputChange} style={styles.select}>
-                                            <option>New</option><option>Converted</option><option>Interested</option><option>Closed</option>
+                                            <option>New</option><option>Converted</option><option>Intrested</option><option>Closed</option>
                                         </select>
                                     </td>
                                     <td style={styles.td}>✨</td>

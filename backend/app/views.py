@@ -274,3 +274,30 @@ class MoveLeadToSalesTask(APIView):
 
         except Lead.DoesNotExist:
             return Response({"error": "Lead not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+
+
+
+
+        # ... (Upar ka code same rahega)
+
+# ==========================================
+#       BULK IMPORT VIEW (Rocket 🚀)
+# ==========================================
+class LeadBulkImport(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
+
+    def post(self, request):
+        # Check karo ki data List (Array) hai ya nahi
+        if not isinstance(request.data, list):
+            return Response({"error": "Data must be a list of leads"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 'many=True' ka matlab hai hum list bhej rahe hain
+        serializer = LeadSerializer(data=request.data, many=True, context={'request': request})
+        
+        if serializer.is_valid():
+            # Saara data ek baar mein save karo (Owner set karke)
+            serializer.save(owner=request.user)
+            return Response({"message": f"Successfully imported {len(request.data)} leads!"}, status=status.HTTP_201_CREATED)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
