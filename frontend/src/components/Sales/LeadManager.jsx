@@ -135,7 +135,7 @@ const LeadManager = () => {
     // --- STATE ---
     const [leads, setLeads] = useState([]);
     
-    // --- 🔒 SECURITY CHECK ---
+    // --- 🔒 SECURITY CHECK (Added) ---
     const userRole = localStorage.getItem('role');
     const isReadOnly = userRole === 'Tech'; 
     // ---------------------------------
@@ -157,9 +157,9 @@ const LeadManager = () => {
     const TASK_API_URL = `${BASE_URL_FIX}/api/sales-tasks/`; 
 
     const purposeOptions = [
-        "TENDER MANAGEMENT", "VENDOR ASSESSMENT", "GEM REGISTRATION", "DIRECT ORDER",
-        "DIRECT LINK", "NOT INTERESTED", "STARTUP INDIA CERTIFICATE",
-        "BUSINESS DEVELOPMENT SERVICES", "L1", "TRAINING GEM"
+        "TENDER MANAGMENT", "VENDOR ASSESSMENT", "GEM REGISTRATION", "DIRECT ORDER",
+        "DIRECT LINK", "NOT INTRESTED", "STARTUP INDIA CERTIFICATE",
+        "BUSINESS DEVELOPEMENT SERVICES", "L1", "TRAINING GEM"
     ];
 
     useEffect(() => { fetchLeads(); }, []);
@@ -180,6 +180,7 @@ const LeadManager = () => {
 
     const handleImportClick = () => fileInputRef.current.click();
     
+    // 👇👇👇 FINAL SMART IMPORT LOGIC FOR SHEET 1 👇👇👇
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -188,8 +189,10 @@ const LeadManager = () => {
         reader.onload = async (evt) => {
             const arrayBuffer = evt.target.result;
             const wb = XLSX.read(arrayBuffer, { type: 'array' });
+            
+            // Sheet 1 (Index 0)
             const ws = wb.Sheets[wb.SheetNames[0]];
-            const data = XLSX.utils.sheet_to_json(ws, { raw: false });
+            const data = XLSX.utils.sheet_to_json(ws, { raw: false, defval: "" });
 
             if (data.length === 0) { 
                 toast.error("File is empty."); 
@@ -200,16 +203,58 @@ const LeadManager = () => {
             let count = 0;
             
             for (const row of data) {
+                // --- 🧹 DATA CLEANING & MAPPING ---
+                
+                // 1. Company Name (Missing -> "Unknown", NOT Person Name)
+                const company = row['Name of Company'] || row['Company Name'] || "Unknown";
+                
+                // 2. Person Name
+                const name = row['Name Contact Person'] || row['Person Name'] || row['Name'] || "Unknown";
+                
+                // 3. Phone Number Cleaning (Scientific Notation Fix)
+                let rawContact = row['Contact No.'] || row['Contact No'] || row['Mobile'] || "";
+                let contact = String(rawContact).replace(/[^0-9]/g, ''); 
+                if (contact.length > 10) contact = contact.slice(-10);
+
+                // 4. Email
+                const email = row['Email.ID'] || row['Email'] || "N/A";
+
+                // 5. Purpose (Pehle PURPOSE.1 fir PURPOSE fir N/A)
+                const purpose = row['PURPOSE.1'] || row['PURPOSE'] || "N/A";
+
+                // 6. Address (Khali)
+                const address = "";
+
+                // 7. Date (Imported or Today)
+                let dateVal = row['Date of Contact'];
+                if (!dateVal) {
+                    dateVal = new Date().toISOString(); // Today
+                } else {
+                    // Try to parse, fallback to today if invalid
+                    try {
+                        const parsedDate = new Date(dateVal);
+                        dateVal = !isNaN(parsedDate) ? parsedDate.toISOString() : new Date().toISOString();
+                    } catch(e) {
+                        dateVal = new Date().toISOString();
+                    }
+                }
+
+                // 8. Note from REMARK
+                const note = row['REMARK'] || "";
+
+                // 9. Status
+                const status = row['STATUS'] || "New";
+
                 const payload = {
-                    date: new Date().toISOString(), 
-                    company: row.Company || row.company || "Unknown", 
-                    name: row.Name || row.name || "Unknown", 
-                    contact: row.Contact || row.contact ? String(row.Contact || row.contact) : "",
-                    email: row.Email || row.email || "", 
-                    address: row.Address || row.address || "", 
-                    note: row.Note || row.note || "Imported", 
-                    purpose: row.Purpose || row.purpose || "General", 
-                    status: "New"
+                    date: dateVal, 
+                    company: company,
+                    name: name,
+                    contact: contact,
+                    email: email,
+                    address: address,
+                    note: note, 
+                    purpose: purpose, 
+                    status: status 
                 };
 
                 try { 
@@ -222,11 +267,12 @@ const LeadManager = () => {
                 }
             }
 
-            toast.success(`${count} Leads imported successfully!`, { id: toastId });
-            e.target.value = null;
+            toast.success(`${count} Leads Imported Successfully!`, { id: toastId });
+            e.target.value = null; // Clear input
         };
         reader.readAsArrayBuffer(file);
     };
+    // 👆👆👆 END IMPORT LOGIC 👆👆👆
 
     const handleSave = async () => {
         if (!newLead.company) { toast.error("Company Name is Required!"); return; }
@@ -309,7 +355,7 @@ const LeadManager = () => {
     const handleDeleteTrigger = (id) => {
         toast((t) => (
             <div style={{ color: '#fff' }}>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>🗑️ Delete Lead?</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>🗑️ Lead Delete?</div>
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                     <button onClick={() => { confirmDelete(id); toast.dismiss(t.id); }} style={{ background: '#ff4444', border: 'none', color: '#fff', padding: '5px 10px', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}>Yes</button>
                     <button onClick={() => toast.dismiss(t.id)} style={{ background: '#444', border: '1px solid #555', color: '#fff', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer' }}>Cancel</button>
@@ -388,7 +434,7 @@ const LeadManager = () => {
                         {!isReadOnly && (
                             <>
                                 <button style={styles.btnPrimary} onClick={handleSave}>+ Save</button>
-                                <input type="file" accept=".xlsx, .xls" ref={fileInputRef} style={{display: 'none'}} onChange={handleFileChange} />
+                                <input type="file" accept=".xlsx, .xls, .csv" ref={fileInputRef} style={{display: 'none'}} onChange={handleFileChange} />
                                 <button style={styles.btnImport} onClick={handleImportClick}>📥 Import</button>
                             </>
                         )}
