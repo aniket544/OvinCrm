@@ -51,13 +51,10 @@ class LeadListCreate(BaseListCreateView):
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
     search_fields = ['name', 'company', 'status', 'contact']
 
-    # 👇👇👇 YE NYA LOGIC HAI 👇👇👇
+    # 👇👇👇 LOGIC: Tech can see all, Sales can see only own 👇👇👇
     def get_queryset(self):
-        # Agar Tech wala hai -> Sab kuch dikhao (Taaki wo padh sake)
         if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
             return Lead.objects.all().order_by('-date')
-        
-        # Agar Sales wala hai -> Sirf uska apna data dikhao
         return Lead.objects.filter(owner=self.request.user)
 
 class LeadDetail(BaseDetailView):
@@ -65,15 +62,13 @@ class LeadDetail(BaseDetailView):
     model = Lead
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
 
-
-# 2. Customers (Sales wale)
+# 2. Customers
 class CustomerListCreate(BaseListCreateView):
     serializer_class = CustomerSerializer
     model = Customer
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
     search_fields = ['name', 'company', 'email']
 
-    # 👇👇👇 YE NYA LOGIC HAI 👇👇👇
     def get_queryset(self):
         if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
             return Customer.objects.all().order_by('-date')
@@ -84,7 +79,6 @@ class CustomerDetail(BaseDetailView):
     model = Customer
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
 
-
 # 3. Payments
 class PaymentListCreate(BaseListCreateView):
     serializer_class = PaymentSerializer
@@ -92,7 +86,6 @@ class PaymentListCreate(BaseListCreateView):
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
     search_fields = ['company', 'invoice', 'so_no']
 
-    # 👇👇👇 YE NYA LOGIC HAI 👇👇👇
     def get_queryset(self):
         if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
             return Payment.objects.all().order_by('-id')
@@ -103,7 +96,6 @@ class PaymentDetail(BaseDetailView):
     model = Payment
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
 
-
 # 4. Sales Tasks (Follow Ups)
 class SalesTaskListCreate(BaseListCreateView):
     serializer_class = SalesTaskSerializer
@@ -111,7 +103,6 @@ class SalesTaskListCreate(BaseListCreateView):
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
     search_fields = ['lead_name', 'company', 'status']
 
-    # 👇👇👇 YE NYA LOGIC HAI 👇👇👇
     def get_queryset(self):
         if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
             return SalesTask.objects.all().order_by('-date')
@@ -121,6 +112,7 @@ class SalesTaskDetail(BaseDetailView):
     serializer_class = SalesTaskSerializer
     model = SalesTask
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
+
 
 # ==========================================
 #       TECH TEAM VIEWS (Tech Edit, Sales Read-Only)
@@ -140,11 +132,17 @@ class TaskListCreate(BaseListCreateView):
         # Sales wale ko sirf wahi dikhega jo usne 'Go Through' se bheja hai
         return Task.objects.filter(owner=self.request.user)
 
-# 👇👇 YE CLASS MISSING THI, ISLIYE ERROR AAYA 👇👇
+# 👇👇 YE CLASS ZARURI HAI (WARN: MISSING THI) 👇👇
 class TaskDetail(BaseDetailView):
     serializer_class = TaskSerializer
     model = Task
     permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly]
+
+    # Tech sab edit kar sakta hai, Sales sirf apna
+    def get_queryset(self):
+        if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
+            return Task.objects.all()
+        return Task.objects.filter(owner=self.request.user)
 # 👆👆
 
 # 6. Tenders
