@@ -309,3 +309,22 @@ class LeadBulkImport(APIView):
             return Response({"message": f"Successfully imported {len(request.data)} leads!"}, status=status.HTTP_201_CREATED)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+        # ... (Baaki imports)
+
+# ==========================================
+#       BULK DELETE VIEW (Safai Abhiyan 🧹)
+# ==========================================
+class LeadBulkDelete(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly] # Sirf Sales delete kar payega
+
+    def post(self, request):
+        ids = request.data.get('ids', [])
+        if not ids or not isinstance(ids, list):
+            return Response({"error": "No IDs provided"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Delete leads where ID is in the list
+        deleted_count, _ = Lead.objects.filter(id__in=ids, owner=request.user).delete()
+        
+        return Response({"message": f"Deleted {deleted_count} leads successfully!"}, status=status.HTTP_200_OK)

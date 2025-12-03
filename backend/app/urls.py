@@ -15,6 +15,8 @@ urlpatterns = [
     # 👇👇👇 NEW BULK IMPORT URL (Ye line add ki hai) 👇👇👇
     path('leads/bulk-import/', LeadBulkImport.as_view(), name='lead-bulk-import'),
     # 👆👆👆
+    # ... Bulk Import ke niche ...
+    path('leads/bulk-delete/', LeadBulkDelete.as_view(), name='lead-bulk-delete'),
 
     # --- Customers ---
     path('customers/', CustomerListCreate.as_view(), name='customer-list'),

@@ -140,6 +140,8 @@ const LeadManager = () => {
     
     // --- STATE ---
     const [leads, setLeads] = useState([]);
+    // 👇 NEW: Selection State for Bulk Delete
+    const [selectedIds, setSelectedIds] = useState([]); 
     
     // --- 🔒 SECURITY CHECK (Added) ---
     const userRole = localStorage.getItem('role');
@@ -183,6 +185,50 @@ const LeadManager = () => {
             toast.error(message);
         }
     };
+
+    // 👇👇👇 NEW: BULK DELETE LOGIC 👇👇👇
+    
+    // 1. Handle Individual Checkbox
+    const handleCheckboxChange = (id) => {
+        if (selectedIds.includes(id)) {
+            setSelectedIds(selectedIds.filter(item => item !== id)); // Uncheck
+        } else {
+            setSelectedIds([...selectedIds, id]); // Check
+        }
+    };
+
+    // 2. Handle Select All
+    const handleSelectAll = (e) => {
+        if (e.target.checked) {
+            const allIds = leads.map(l => l.id);
+            setSelectedIds(allIds);
+        } else {
+            setSelectedIds([]);
+        }
+    };
+
+    // 3. Execute Bulk Delete
+    const handleBulkDelete = async () => {
+        if (selectedIds.length === 0) return;
+        
+        if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} leads? This cannot be undone.`)) return;
+
+        const toastId = toast.loading("Deleting selected leads...");
+        try {
+            const BULK_DELETE_URL = `${BASE_URL_FIX}/api/leads/bulk-delete/`;
+            await axios.post(BULK_DELETE_URL, { ids: selectedIds }, getAuthHeaders());
+            
+            // UI Update
+            setLeads(leads.filter(l => !selectedIds.includes(l.id)));
+            setSelectedIds([]); // Clear selection
+            
+            toast.success("Selected leads deleted successfully!", { id: toastId });
+        } catch (error) {
+            console.error(error);
+            toast.error("Bulk delete failed.", { id: toastId });
+        }
+    };
+    // 👆👆👆 END BULK DELETE LOGIC 👆👆👆
 
     const handleImportClick = () => fileInputRef.current.click();
     
@@ -231,13 +277,10 @@ const LeadManager = () => {
                 let rawContact = row['Contact No.'] || row['Contact No'] || row['Mobile'] || "";
                 let contact = String(rawContact).replace(/[^0-9]/g, ''); 
                 if (contact.length > 10) contact = contact.slice(-10);
-                // Agar contact khali hai, toh skip mat karo, bas blank bhej do (Backend shayad allow kare)
-                // Agar backend contact require karta hai, toh yahan 'if (!contact) continue;' laga dena.
 
                 // --- 4. Email (SUPER STRICT CLEANING) ---
                 let email = row['Email.ID'] || row['Email'] || "";
                 email = String(email).trim().toLowerCase();
-                // Valid email regex
                 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
                 if (!emailRegex.test(email)) {
                     email = ""; // Agar email invalid hai toh usse blank kar do
@@ -258,7 +301,7 @@ const LeadManager = () => {
                 let remarkFromFile = row['REMARK'] || "";
                 const finalNote = remarkFromFile ? `${importNote}: ${remarkFromFile}` : importNote;
 
-                // SKIP LOGIC: Agar Company aur Name dono bekaar hain toh mat lo
+                // SKIP LOGIC
                 if (company === "Unknown Company" && name === "Unknown Person") continue;
 
                 bulkPayload.push({
@@ -277,7 +320,7 @@ const LeadManager = () => {
             // Send to Backend
             try {
                 toast.loading(`Uploading ${bulkPayload.length} clean leads...`, { id: toastId });
-                console.log("Final Payload Preview:", bulkPayload.slice(0, 3)); // Debugging ke liye
+                console.log("Final Payload Preview:", bulkPayload.slice(0, 3)); 
 
                 const BULK_URL = `${BASE_URL_FIX}/api/leads/bulk-import/`;
                 const res = await axios.post(BULK_URL, bulkPayload, getAuthHeaders());
@@ -289,9 +332,7 @@ const LeadManager = () => {
                 
                 let errMsg = "Import failed!";
                 if (error.response?.data) {
-                    // Detailed error finding
                     if (Array.isArray(error.response.data)) {
-                         // Find first object that is NOT empty
                          const firstErrorIndex = error.response.data.findIndex(err => Object.keys(err).length > 0);
                          if (firstErrorIndex !== -1) {
                              errMsg = `Error at Row ${firstErrorIndex + 1}: ${JSON.stringify(error.response.data[firstErrorIndex])}`;
@@ -405,6 +446,12 @@ const LeadManager = () => {
             const headers = getAuthHeaders();
             await axios.delete(`${LEAD_API_URL}${id}/`, headers); 
             setLeads(leads.filter(l => l.id !== id)); 
+            
+            // Also remove from selectedIds if it was selected
+            if (selectedIds.includes(id)) {
+                setSelectedIds(selectedIds.filter(itemId => itemId !== id));
+            }
+            
             toast.success("Deleted Successfully!"); 
         } catch (error) {
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
@@ -449,6 +496,10 @@ const LeadManager = () => {
         btnPrimary: { background: 'linear-gradient(45deg, #00ffcc, #00c3ff)', border: 'none', padding: '10px 20px', color: '#000', fontWeight: 'bold', borderRadius: '5px', cursor: 'pointer', boxShadow: '0 0 10px rgba(0, 255, 204, 0.3)', transition: '0.3s' },
         btnSuccess: { background: 'linear-gradient(45deg, #11998e, #38ef7d)', border: 'none', padding: '10px 20px', color: '#fff', fontWeight: 'bold', borderRadius: '5px', cursor: 'pointer', marginLeft: '10px' },
         btnImport: { background: 'linear-gradient(45deg, #ff9966, #ff5e62)', border: 'none', padding: '10px 20px', color: '#fff', fontWeight: 'bold', borderRadius: '5px', cursor: 'pointer', marginLeft: '10px' },
+        // NEW STYLES
+        btnBulkDelete: { background: '#ff4444', border: 'none', padding: '10px 20px', color: '#fff', fontWeight: 'bold', borderRadius: '5px', cursor: 'pointer', marginRight: '10px', boxShadow: '0 0 10px rgba(255, 68, 68, 0.4)' },
+        checkbox: { cursor: 'pointer', width: '16px', height: '16px', accentColor: '#00ffcc' },
+        
         tableContainer: { overflowX: 'auto', borderRadius: '10px', border: '1px solid #333' },
         table: { width: '100%', borderCollapse: 'collapse', minWidth: '1500px' }, 
         th: { background: '#252525', color: '#00ffcc', padding: '15px', textAlign: 'left', fontSize: '12px', textTransform: 'uppercase', borderBottom: '2px solid #00ffcc', whiteSpace: 'nowrap' },
@@ -468,6 +519,13 @@ const LeadManager = () => {
                     {/* 👇 SECURITY: Tech team ko Save/Import ka option mat dikhao */}
                     {!isReadOnly && (
                         <>
+                             {/* 👇 NEW: Bulk Delete Button (Only shows if items are selected) */}
+                             {selectedIds.length > 0 && (
+                                <button style={styles.btnBulkDelete} onClick={handleBulkDelete}>
+                                    Delete Selected ({selectedIds.length})
+                                </button>
+                            )}
+                            
                             <button style={styles.btnPrimary} onClick={handleSave}>+ Save</button>
                             <input type="file" accept=".xlsx, .xls, .csv" ref={fileInputRef} style={{display: 'none'}} onChange={handleFileChange} />
                             <button style={styles.btnImport} onClick={handleImportClick}>📥 Import</button>
@@ -482,6 +540,18 @@ const LeadManager = () => {
                 <table style={styles.table}>
                     <thead>
                         <tr>
+                            {/* 👇 NEW: Select All Checkbox */}
+                            {!isReadOnly && (
+                                <th style={{...styles.th, textAlign: 'center', width: '40px'}}>
+                                    <input 
+                                        type="checkbox" 
+                                        onChange={handleSelectAll} 
+                                        checked={leads.length > 0 && selectedIds.length === leads.length} 
+                                        style={styles.checkbox} 
+                                    />
+                                </th>
+                            )}
+
                             <th style={styles.th}>Date & Time</th>
                             <th style={styles.th}>S.No</th>
                             <th style={styles.th}>Company</th>
@@ -499,6 +569,9 @@ const LeadManager = () => {
                         {/* 👇 SECURITY: Tech team ko Input Row mat dikhao */}
                         {!isReadOnly && (
                             <tr style={{ background: '#2a2a2a' }}>
+                                {/* 👇 NEW: Empty cell for Checkbox column */}
+                                <td style={styles.td}></td> 
+                                
                                 <td style={styles.td}><input type="datetime-local" name="date" value={newLead.date} onChange={handleInputChange} style={styles.input} /></td>
                                 <td style={styles.td}><input type="text" name="sno" value={newLead.sno} onChange={handleInputChange} placeholder="1" style={{...styles.input, width: '50px'}} /></td>
                                 <td style={styles.td}><input type="text" name="company" value={newLead.company} onChange={handleInputChange} placeholder="Company" style={styles.input} /></td>
@@ -525,7 +598,20 @@ const LeadManager = () => {
 
                         {/* DATA ROWS */}
                         {leads.map((l, index) => (
-                            <tr key={l.id} style={{ borderBottom: '1px solid #222' }} className="hover-row">
+                            <tr key={l.id} style={{ borderBottom: '1px solid #222', background: selectedIds.includes(l.id) ? 'rgba(0, 255, 204, 0.1)' : 'transparent' }} className="hover-row">
+                                
+                                {/* 👇 NEW: Individual Checkbox */}
+                                {!isReadOnly && (
+                                    <td style={{...styles.td, textAlign: 'center'}}>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={selectedIds.includes(l.id)} 
+                                            onChange={() => handleCheckboxChange(l.id)} 
+                                            style={styles.checkbox} 
+                                        />
+                                    </td>
+                                )}
+
                                 <td style={{...styles.td, fontSize: '12px', color: '#bbb'}}>{formatDateTime(l.date)}</td>
                                 <td style={styles.td}>{l.sno || index + 1}</td>
                                 <td style={{...styles.td, color: '#fff', fontWeight: 'bold'}}>{l.company}</td>
