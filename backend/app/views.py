@@ -79,8 +79,8 @@ class CustomerListCreate(BaseListCreateView):
 
     def get_queryset(self):
         if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
-            return Customer.objects.all().order_by('-date')
-        return Customer.objects.filter(owner=self.request.user)
+            return Customer.objects.all().order_by('-id')
+        return Customer.objects.all(owner=self.request.user)
 
 class CustomerDetail(BaseDetailView):
     serializer_class = CustomerSerializer
@@ -114,7 +114,7 @@ class SalesTaskListCreate(BaseListCreateView):
     def get_queryset(self):
         if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
             return SalesTask.objects.all().order_by('-date')
-        return SalesTask.objects.filter(owner=self.request.user)
+        return SalesTask.objects.all(owner=self.request.user)
 
 class SalesTaskDetail(BaseDetailView):
     serializer_class = SalesTaskSerializer
