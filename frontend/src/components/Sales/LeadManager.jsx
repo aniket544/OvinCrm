@@ -180,99 +180,100 @@ const LeadManager = () => {
 
     const handleImportClick = () => fileInputRef.current.click();
     
-    // 👇👇👇 FINAL SMART IMPORT LOGIC FOR SHEET 1 👇👇👇
+    // 👇👇👇 🚛 FINAL BULK IMPORT LOGIC (FAST & ERROR FREE) 👇👇👇
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
+
+        // Smart Detection
+        const fileName = file.name.toLowerCase();
+        let statusToSet = "New"; 
+        let importNote = "Imported (Raw Data)";
+
+        if (fileName.includes("follow up")) {
+            statusToSet = "Interested";
+            importNote = "Imported (Follow Up Data)";
+        } else if (fileName.includes("client")) {
+            statusToSet = "Converted";
+            importNote = "Imported (Old Client)";
+        }
 
         const reader = new FileReader();
         reader.onload = async (evt) => {
             const arrayBuffer = evt.target.result;
             const wb = XLSX.read(arrayBuffer, { type: 'array' });
             
-            // Sheet 1 (Index 0)
+            // Sheet 1
             const ws = wb.Sheets[wb.SheetNames[0]];
             const data = XLSX.utils.sheet_to_json(ws, { raw: false, defval: "" });
 
-            if (data.length === 0) { 
-                toast.error("File is empty."); 
-                return; 
-            }
+            if (data.length === 0) { toast.error("Empty File"); return; }
 
-            const toastId = toast.loading(`Importing ${data.length} leads...`);
-            let count = 0;
+            const toastId = toast.loading(`Preparing ${data.length} leads...`);
             
+            // 1. Data ko Array mein jama karo (Request mat bhejo abhi)
+            const bulkPayload = [];
+
             for (const row of data) {
-                // --- 🧹 DATA CLEANING & MAPPING ---
-                
-                // 1. Company Name (Missing -> "Unknown", NOT Person Name)
-                const company = row['Name of Company'] || row['Company Name'] || "Unknown";
-                
-                // 2. Person Name
+                // --- Cleaning Logic ---
+                const company = row['Name of Company'] || row['Company Name'] || row['Party Name'] || "Unknown";
                 const name = row['Name Contact Person'] || row['Person Name'] || row['Name'] || "Unknown";
                 
-                // 3. Phone Number Cleaning (Scientific Notation Fix)
                 let rawContact = row['Contact No.'] || row['Contact No'] || row['Mobile'] || "";
                 let contact = String(rawContact).replace(/[^0-9]/g, ''); 
                 if (contact.length > 10) contact = contact.slice(-10);
 
-                // 4. Email
                 const email = row['Email.ID'] || row['Email'] || "N/A";
-
-                // 5. Purpose (Pehle PURPOSE.1 fir PURPOSE fir N/A)
                 const purpose = row['PURPOSE.1'] || row['PURPOSE'] || "N/A";
-
-                // 6. Address (Khali)
-                const address = "";
-
-                // 7. Date (Imported or Today)
+                
                 let dateVal = row['Date of Contact'];
-                if (!dateVal) {
-                    dateVal = new Date().toISOString(); // Today
-                } else {
-                    // Try to parse, fallback to today if invalid
-                    try {
-                        const parsedDate = new Date(dateVal);
-                        dateVal = !isNaN(parsedDate) ? parsedDate.toISOString() : new Date().toISOString();
-                    } catch(e) {
-                        dateVal = new Date().toISOString();
-                    }
+                if (!dateVal) dateVal = new Date().toISOString();
+                else {
+                    try { dateVal = new Date(dateVal).toISOString(); } catch { dateVal = new Date().toISOString(); }
                 }
 
-                // 8. Note from REMARK
-                const note = row['REMARK'] || "";
+                const remarkFromFile = row['REMARK'] || "";
+                const finalNote = remarkFromFile ? `${importNote}: ${remarkFromFile}` : importNote;
 
-                // 9. Status
-                const status = row['STATUS'] || "New";
+                if (company === "Unknown" && name === "Unknown") continue;
 
-                const payload = {
+                // Push to Truck 🚛
+                bulkPayload.push({
                     date: dateVal, 
                     company: company,
                     name: name,
                     contact: contact,
                     email: email,
-                    address: address,
-                    note: note, 
+                    address: "",
+                    note: finalNote, 
                     purpose: purpose, 
-                    status: status 
-                };
-
-                try { 
-                    const headers = getAuthHeaders();
-                    const res = await axios.post(LEAD_API_URL, payload, headers);
-                    setLeads(prev => [...prev, res.data]);
-                    count++; 
-                } catch (err) {
-                    console.error("Row failed:", row, err);
-                }
+                    status: statusToSet 
+                });
             }
 
-            toast.success(`${count} Leads Imported Successfully!`, { id: toastId });
-            e.target.value = null; // Clear input
+            // 2. Ab ek saath poora Truck bhejo Backend ko 🚚
+            try {
+                toast.loading(`Uploading ${bulkPayload.length} leads...`, { id: toastId });
+                
+                // BULK API CALL
+                const BULK_URL = `${BASE_URL_FIX}/api/leads/bulk-import/`;
+                await axios.post(BULK_URL, bulkPayload, getAuthHeaders());
+                
+                toast.success(`Successfully Imported ${bulkPayload.length} Leads!`, { id: toastId });
+                
+                // 3. Refresh List
+                fetchLeads(); 
+                
+            } catch (error) {
+                console.error("Bulk Import Failed:", error);
+                toast.error("Import failed! Check file format.", { id: toastId });
+            }
+
+            e.target.value = null; 
         };
         reader.readAsArrayBuffer(file);
     };
-    // 👆👆👆 END IMPORT LOGIC 👆👆👆
+    // 👆👆👆 END BULK LOGIC 👆👆👆
 
     const handleSave = async () => {
         if (!newLead.company) { toast.error("Company Name is Required!"); return; }
@@ -291,12 +292,12 @@ const LeadManager = () => {
     };
 
     // --- FOLLOW UP & PAYMENT HANDLERS ---
-    const handleMoveToSalesTrigger = (lead) => {
-        setCurrentLeadForTask(lead);
+    const handleMoveToSalesTrigger = (l) => {
+        setCurrentLeadForTask(l);
         setShowModal(true); 
     };
     
-    const confirmMoveToSales = async (lead, followUpDate, priority, remarks) => {
+    const confirmMoveToSales = async (lead, date, priority, remarks) => {
         const toastId = toast.loading("Creating Task...");
         const headers = getAuthHeaders();
 
@@ -425,139 +426,137 @@ const LeadManager = () => {
     };
 
     return (
-        <>
-            <div style={styles.container}>
-                <div style={styles.header}>
-                    <div style={styles.title}>Lead Manager</div>
-                    <div>
-                        {/* 👇 SECURITY: Tech team ko Save/Import ka option mat dikhao */}
+        <div style={styles.container}>
+            <div style={styles.header}>
+                <div style={styles.title}>Lead Manager</div>
+                <div>
+                    {/* 👇 SECURITY: Tech team ko Save/Import ka option mat dikhao */}
+                    {!isReadOnly && (
+                        <>
+                            <button style={styles.btnPrimary} onClick={handleSave}>+ Save</button>
+                            <input type="file" accept=".xlsx, .xls, .csv" ref={fileInputRef} style={{display: 'none'}} onChange={handleFileChange} />
+                            <button style={styles.btnImport} onClick={handleImportClick}>📥 Import</button>
+                        </>
+                    )}
+                    {/* 👆 End Security Check */}
+                    <button style={styles.btnSuccess} onClick={handleExport}>Export</button>
+                </div>
+            </div>
+
+            <div style={styles.tableContainer}>
+                <table style={styles.table}>
+                    <thead>
+                        <tr>
+                            <th style={styles.th}>Date & Time</th>
+                            <th style={styles.th}>S.No</th>
+                            <th style={styles.th}>Company</th>
+                            <th style={styles.th}>Name</th>
+                            <th style={styles.th}>Contact</th>
+                            <th style={styles.th}>Email</th>
+                            <th style={styles.th}>Address</th>
+                            <th style={styles.th}>Note</th>
+                            <th style={styles.th}>Purpose</th>
+                            <th style={styles.th}>Status</th>
+                            <th style={styles.th} className="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {/* 👇 SECURITY: Tech team ko Input Row mat dikhao */}
                         {!isReadOnly && (
-                            <>
-                                <button style={styles.btnPrimary} onClick={handleSave}>+ Save</button>
-                                <input type="file" accept=".xlsx, .xls" ref={fileInputRef} style={{display: 'none'}} onChange={handleFileChange} />
-                                <button style={styles.btnImport} onClick={handleImportClick}>📥 Import</button>
-                            </>
+                            <tr style={{ background: '#2a2a2a' }}>
+                                <td style={styles.td}><input type="datetime-local" name="date" value={newLead.date} onChange={handleInputChange} style={styles.input} /></td>
+                                <td style={styles.td}><input type="text" name="sno" value={newLead.sno} onChange={handleInputChange} placeholder="1" style={{...styles.input, width: '50px'}} /></td>
+                                <td style={styles.td}><input type="text" name="company" value={newLead.company} onChange={handleInputChange} placeholder="Company" style={styles.input} /></td>
+                                <td style={styles.td}><input type="text" name="name" value={newLead.name} onChange={handleInputChange} placeholder="Name" style={styles.input} /></td>
+                                <td style={styles.td}><input type="text" name="contact" value={newLead.contact} onChange={handleInputChange} placeholder="Phone" style={styles.input} /></td>
+                                <td style={styles.td}><input type="text" name="email" value={newLead.email} onChange={handleInputChange} placeholder="Email" style={styles.input} /></td>
+                                <td style={styles.td}><input type="text" name="address" value={newLead.address} onChange={handleInputChange} placeholder="Address" style={styles.input} /></td>
+                                <td style={styles.td}><input type="text" name="note" value={newLead.note} onChange={handleInputChange} placeholder="Note" style={styles.input} /></td>
+                                <td style={styles.td}>
+                                    <select name="purpose" value={newLead.purpose} onChange={handleInputChange} style={styles.select}>
+                                        <option value="">Select</option>
+                                        {purposeOptions.map((o, i) => <option key={i} value={o}>{o}</option>)}
+                                    </select>
+                                </td>
+                                <td style={styles.td}>
+                                    <select name="status" value={newLead.status} onChange={handleInputChange} style={styles.select}>
+                                        <option>New</option><option>Converted</option><option>Interested</option><option>Closed</option>
+                                    </select>
+                                </td>
+                                <td style={styles.td}>✨</td>
+                            </tr>
                         )}
                         {/* 👆 End Security Check */}
-                        <button style={styles.btnSuccess} onClick={handleExport}>Export</button>
-                    </div>
-                </div>
 
-                <div style={styles.tableContainer}>
-                    <table style={styles.table}>
-                        <thead>
-                            <tr>
-                                <th style={styles.th}>Date & Time</th>
-                                <th style={styles.th}>S.No</th>
-                                <th style={styles.th}>Company</th>
-                                <th style={styles.th}>Name</th>
-                                <th style={styles.th}>Contact</th>
-                                <th style={styles.th}>Email</th>
-                                <th style={styles.th}>Address</th>
-                                <th style={styles.th}>Note</th>
-                                <th style={styles.th}>Purpose</th>
-                                <th style={styles.th}>Status</th>
-                                <th style={styles.th} className="text-center">Actions</th>
+                        {/* DATA ROWS */}
+                        {leads.map((l, index) => (
+                            <tr key={l.id} style={{ borderBottom: '1px solid #222' }} className="hover-row">
+                                <td style={{...styles.td, fontSize: '12px', color: '#bbb'}}>{formatDateTime(l.date)}</td>
+                                <td style={styles.td}>{l.sno || index + 1}</td>
+                                <td style={{...styles.td, color: '#fff', fontWeight: 'bold'}}>{l.company}</td>
+                                <td style={styles.td}>{l.name}</td>
+                                <td style={{...styles.td, color: '#00ffcc'}}>{l.contact}</td>
+                                <td style={styles.td}>{l.email}</td>
+                                <td style={styles.td}>{l.address}</td>
+                                <td style={styles.td}>{l.note}</td>
+                                <td style={styles.td}>{l.purpose}</td>
+                                <td style={styles.td}>
+                                    <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', background: l.status==='Converted'?'#28a745':'#007bff', color:'#fff'}}>
+                                        {l.status}
+                                    </span>
+                                </td>
+                                <td style={styles.td}>
+                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                        {/* 👇 SECURITY: Hide Actions for Tech users */}
+                                        {!isReadOnly ? (
+                                            <>
+                                                <button style={styles.btnFollow} onClick={() => handleMoveToSalesTrigger(l)} title="Send to Sales">Follow Up 📞</button>
+                                                
+                                                {l.status !== 'Converted' && (
+                                                    <button style={styles.btnConvert} onClick={() => handleConvertTrigger(l)} title="Convert">Convert 💰</button>
+                                                )}
+                                                <button style={styles.btnDelete} onClick={() => handleDeleteTrigger(l.id)}>Del</button>
+                                            </>
+                                        ) : (
+                                            <span style={{fontSize: '16px', opacity: 0.7}}>👁️ View Only</span>
+                                        )}
+                                        {/* 👆 End Security Check */}
+                                    </div>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            {/* 👇 SECURITY: Tech team ko Input Row mat dikhao */}
-                            {!isReadOnly && (
-                                <tr style={{ background: '#2a2a2a' }}>
-                                    <td style={styles.td}><input type="datetime-local" name="date" value={newLead.date} onChange={handleInputChange} style={styles.input} /></td>
-                                    <td style={styles.td}><input type="text" name="sno" value={newLead.sno} onChange={handleInputChange} placeholder="1" style={{...styles.input, width: '50px'}} /></td>
-                                    <td style={styles.td}><input type="text" name="company" value={newLead.company} onChange={handleInputChange} placeholder="Company" style={styles.input} /></td>
-                                    <td style={styles.td}><input type="text" name="name" value={newLead.name} onChange={handleInputChange} placeholder="Name" style={styles.input} /></td>
-                                    <td style={styles.td}><input type="text" name="contact" value={newLead.contact} onChange={handleInputChange} placeholder="Phone" style={styles.input} /></td>
-                                    <td style={styles.td}><input type="text" name="email" value={newLead.email} onChange={handleInputChange} placeholder="Email" style={styles.input} /></td>
-                                    <td style={styles.td}><input type="text" name="address" value={newLead.address} onChange={handleInputChange} placeholder="Address" style={styles.input} /></td>
-                                    <td style={styles.td}><input type="text" name="note" value={newLead.note} onChange={handleInputChange} placeholder="Note" style={styles.input} /></td>
-                                    <td style={styles.td}>
-                                        <select name="purpose" value={newLead.purpose} onChange={handleInputChange} style={styles.select}>
-                                            <option value="">Select</option>
-                                            {purposeOptions.map((o, i) => <option key={i} value={o}>{o}</option>)}
-                                        </select>
-                                    </td>
-                                    <td style={styles.td}>
-                                        <select name="status" value={newLead.status} onChange={handleInputChange} style={styles.select}>
-                                            <option>New</option><option>Converted</option><option>Intrested</option><option>Closed</option>
-                                        </select>
-                                    </td>
-                                    <td style={styles.td}>✨</td>
-                                </tr>
-                            )}
-                            {/* 👆 End Security Check */}
-
-                            {/* DATA ROWS */}
-                            {leads.map((l, index) => (
-                                <tr key={l.id} style={{ borderBottom: '1px solid #222' }} className="hover-row">
-                                    <td style={{...styles.td, fontSize: '12px', color: '#bbb'}}>{formatDateTime(l.date)}</td>
-                                    <td style={styles.td}>{l.sno || index + 1}</td>
-                                    <td style={{...styles.td, color: '#fff', fontWeight: 'bold'}}>{l.company}</td>
-                                    <td style={styles.td}>{l.name}</td>
-                                    <td style={{...styles.td, color: '#00ffcc'}}>{l.contact}</td>
-                                    <td style={styles.td}>{l.email}</td>
-                                    <td style={styles.td}>{l.address}</td>
-                                    <td style={styles.td}>{l.note}</td>
-                                    <td style={styles.td}>{l.purpose}</td>
-                                    <td style={styles.td}>
-                                        <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', background: l.status==='Converted'?'#28a745':'#007bff', color:'#fff'}}>
-                                            {l.status}
-                                        </span>
-                                    </td>
-                                    <td style={styles.td}>
-                                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                                            {/* 👇 SECURITY: Hide Actions for Tech users */}
-                                            {!isReadOnly ? (
-                                                <>
-                                                    <button style={styles.btnFollow} onClick={() => handleMoveToSalesTrigger(l)} title="Send to Sales">Follow Up 📞</button>
-                                                    
-                                                    {l.status !== 'Converted' && (
-                                                        <button style={styles.btnConvert} onClick={() => handleConvertTrigger(l)} title="Convert">Convert 💰</button>
-                                                    )}
-                                                    <button style={styles.btnDelete} onClick={() => handleDeleteTrigger(l.id)}>Del</button>
-                                                </>
-                                            ) : (
-                                                <span style={{fontSize: '16px', opacity: 0.7}}>👁️ View Only</span>
-                                            )}
-                                            {/* 👆 End Security Check */}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-                {/* MODAL DISPLAY */}
-                {showModal && (
-                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(8px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-                        <FollowUpModal 
-                            lead={currentLeadForTask} 
-                            onClose={() => setShowModal(false)} 
-                            onConfirm={confirmMoveToSales} 
-                        />
-                    </div>
-                )}
-                {showPaymentModal && (
-                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(8px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-                        <PaymentDetailsModal 
-                            lead={currentLeadForTask} 
-                            onClose={() => setShowPaymentModal(false)} 
-                            onConfirm={confirmPaymentRecord} 
-                        />
-                    </div>
-                )}
-                {/* Global styles */}
-                <style>{`
-                    .hover-row:hover { background-color: #252525 !important; }
-                    input:focus, select:focus { border-color: #00ffcc !important; box-shadow: 0 0 8px rgba(0, 255, 204, 0.3); }
-                    input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
-                    ::-webkit-scrollbar { width: 8px; height: 8px; }
-                    ::-webkit-scrollbar-track { background: #111; }
-                    ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
-                `}</style>
+                        ))}
+                    </tbody>
+                </table>
             </div>
-        </>
+            
+            {showModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(8px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+                    <FollowUpModal 
+                        lead={currentLeadForTask} 
+                        onClose={() => setShowModal(false)} 
+                        onConfirm={confirmMoveToSales} 
+                    />
+                </div>
+            )}
+            {showPaymentModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(8px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+                    <PaymentDetailsModal 
+                        lead={currentLeadForTask} 
+                        onClose={() => setShowPaymentModal(false)} 
+                        onConfirm={confirmPaymentRecord} 
+                    />
+                </div>
+            )}
+            {/* Global styles */}
+            <style>{`
+                .hover-row:hover { background-color: #252525 !important; }
+                input:focus, select:focus { border-color: #00ffcc !important; box-shadow: 0 0 8px rgba(0, 255, 204, 0.3); }
+                input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
+                ::-webkit-scrollbar { width: 8px; height: 8px; }
+                ::-webkit-scrollbar-track { background: #111; }
+                ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+            `}</style>
+        </div>
     );
 };
 
