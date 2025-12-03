@@ -233,21 +233,19 @@ const LeadManager = () => {
     const handleImportClick = () => fileInputRef.current.click();
     
     // 👇👇👇 ERROR-PROOF BULK IMPORT LOGIC 👇👇👇
-   // 👇👇👇 FIXED IMPORT LOGIC (Excel Status Priority) 👇👇👇
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         const fileName = file.name.toLowerCase();
-        // Default status based on file name (Fallback)
-        let defaultStatus = "New"; 
+        let statusToSet = "New"; 
         let importNote = "Imported (Raw Data)";
 
         if (fileName.includes("follow up")) {
-            defaultStatus = "Interested";
+            statusToSet = "Interested";
             importNote = "Imported (Follow Up Data)";
         } else if (fileName.includes("client")) {
-            defaultStatus = "Converted";
+            statusToSet = "Converted";
             importNote = "Imported (Old Client)";
         }
 
@@ -260,85 +258,87 @@ const LeadManager = () => {
 
             if (data.length === 0) { toast.error("File is empty."); return; }
 
-            const toastId = toast.loading(`Processing ${data.length} leads...`);
+            const toastId = toast.loading(`Cleaning ${data.length} leads...`);
+            
             const bulkPayload = [];
 
             for (const row of data) {
-                // --- Data Cleaning ---
+                // --- 1. Company (Must not be empty or too long) ---
                 let company = row['Name of Company'] || row['Company Name'] || row['Party Name'] || "Unknown";
                 company = String(company).trim().substring(0, 199); 
-                if (!company || company.length < 2) company = "Unknown Company";
+                if (!company || company.length < 2) company = "Unknown Company"; // Fallback
 
+                // --- 2. Name ---
                 let name = row['Name Contact Person'] || row['Person Name'] || row['Name'] || "Unknown";
                 name = String(name).trim().substring(0, 99);
                 if (!name) name = "Unknown Person";
-                
+
+                // --- 3. Contact ---
                 let rawContact = row['Contact No.'] || row['Contact No'] || row['Mobile'] || "";
                 let contact = String(rawContact).replace(/[^0-9]/g, ''); 
                 if (contact.length > 10) contact = contact.slice(-10);
 
+                // --- 4. Email (SUPER STRICT CLEANING) ---
                 let email = row['Email.ID'] || row['Email'] || "";
-                email = String(email).trim();
-                if (email === "N/A" || !email.includes("@")) email = ""; 
+                email = String(email).trim().toLowerCase();
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(email)) {
+                    email = ""; // Agar email invalid hai toh usse blank kar do
+                }
 
+                // --- 5. Purpose ---
                 let purpose = row['PURPOSE.1'] || row['PURPOSE'] || "N/A";
-                purpose = String(purpose).substring(0, 199);
-                
+                purpose = String(purpose).trim().substring(0, 199);
+
+                // --- 6. Date ---
                 let dateVal = row['Date of Contact'];
                 if (!dateVal) dateVal = new Date().toISOString();
                 else {
                     try { dateVal = new Date(dateVal).toISOString(); } catch { dateVal = new Date().toISOString(); }
                 }
 
-                const remarkFromFile = row['REMARK'] || "";
+                // --- 7. Note ---
+                let remarkFromFile = row['REMARK'] || "";
                 const finalNote = remarkFromFile ? `${importNote}: ${remarkFromFile}` : importNote;
 
-                // 👇 MAIN STATUS FIX 👇
-                // Excel ka status uthao (Case insensitive match ke liye Title Case convert kar sakte hain)
-                let excelStatus = row['STATUS']; 
-                
-                // Agar Excel me status hai, toh use karo. Nahi toh default file wala use karo.
-                // Hum thoda clean bhi kar rahe hain taaki backend reject na kare.
-                let finalStatus = defaultStatus;
-
-                if (excelStatus) {
-                    const s = String(excelStatus).toUpperCase().trim();
-                    if (s.includes("PENDING")) finalStatus = "Interested"; // Mapping 'Pending' to 'Interested' (Agar CRM me Pending option nahi hai)
-                    else if (s.includes("CONVERTED")) finalStatus = "Converted";
-                    else if (s.includes("INTERESTED")) finalStatus = "Interested";
-                    else if (s.includes("NEW")) finalStatus = "New";
-                    // Agar koi aur status hai jo CRM me nahi hai, toh default rehne do
-                }
-
+                // SKIP LOGIC
                 if (company === "Unknown Company" && name === "Unknown Person") continue;
 
                 bulkPayload.push({
                     date: dateVal, 
-                    sno: "", 
-                    company, name, contact, email, address: "",
-                    note: finalNote, purpose, 
-                    status: finalStatus // ✅ Ab ye Excel se aayega agar wahan likha ho
+                    company: company,
+                    name: name,
+                    contact: contact,
+                    email: email, 
+                    address: "",
+                    note: finalNote, 
+                    purpose: purpose, 
+                    status: statusToSet 
                 });
             }
 
+            // Send to Backend
             try {
-                toast.loading(`Uploading ${bulkPayload.length} leads...`, { id: toastId });
+                toast.loading(`Uploading ${bulkPayload.length} clean leads...`, { id: toastId });
+                console.log("Final Payload Preview:", bulkPayload.slice(0, 3)); 
+
                 const BULK_URL = `${BASE_URL_FIX}/api/leads/bulk-import/`;
                 const res = await axios.post(BULK_URL, bulkPayload, getAuthHeaders());
+                
                 toast.success(res.data.message, { id: toastId });
                 fetchLeads(); 
             } catch (error) {
                 console.error("Bulk Import Failed:", error);
+                
                 let errMsg = "Import failed!";
                 if (error.response?.data) {
-                    if (Array.isArray(error.response.data) && error.response.data.length > 0) {
-                        const firstError = error.response.data[0];
-                        // Agar status ka error hai toh user ko batao
-                        if (firstError.status) {
-                           errMsg = `Status Error: CRM doesn't accept '${firstError.status}'. allowed: New, Interested, Converted, Closed`; 
-                        } else {
-                           errMsg = `Data Error: ${JSON.stringify(firstError)}`;
-                        }
+                    if (Array.isArray(error.response.data)) {
+                         const firstErrorIndex = error.response.data.findIndex(err => Object.keys(err).length > 0);
+                         if (firstErrorIndex !== -1) {
+                             errMsg = `Error at Row ${firstErrorIndex + 1}: ${JSON.stringify(error.response.data[firstErrorIndex])}`;
+                         } else {
+                             errMsg = "Unknown Data Error (Check constraints)";
+                         }
                     } else {
                         errMsg = `Server Error: ${JSON.stringify(error.response.data)}`;
                     }
