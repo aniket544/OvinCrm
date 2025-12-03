@@ -233,8 +233,7 @@ const LeadManager = () => {
     const handleImportClick = () => fileInputRef.current.click();
     
     // 👇👇👇 ERROR-PROOF BULK IMPORT LOGIC 👇👇👇
-   // 👇👇👇 FINAL ROBUST IMPORT LOGIC (NO ERROR 400) 👇👇👇
-    const handleFileChange = (e) => {
+  const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
@@ -255,93 +254,109 @@ const LeadManager = () => {
             const arrayBuffer = evt.target.result;
             const wb = XLSX.read(arrayBuffer, { type: 'array' });
             const ws = wb.Sheets[wb.SheetNames[0]];
-            // 'defval: ""' se empty cells undefined nahi rahenge
             const data = XLSX.utils.sheet_to_json(ws, { raw: false, defval: "" });
 
             if (data.length === 0) { toast.error("File is empty."); return; }
 
-            const toastId = toast.loading(`Scanning & Cleaning ${data.length} leads...`);
+            const toastId = toast.loading(`Cleaning & Processing ${data.length} leads...`);
             
             const bulkPayload = [];
             const todayStr = new Date().toISOString();
 
-            for (const row of data) {
-                // --- 1. Raw Data Fetching ---
-                const rawCompany = row['Name of Company'] || row['Company Name'] || row['Party Name'];
-                const rawName = row['Name Contact Person'] || row['Person Name'] || row['Name'];
-                const rawContact = row['Contact No.'] || row['Contact No'] || row['Mobile'];
-                const rawEmail = row['Email.ID'] || row['Email'];
+            // --- HEADER MAPPING HELPER ---
+            const getVal = (row, keywords) => {
+                const key = Object.keys(row).find(k => keywords.some(kw => k.toLowerCase().includes(kw.toLowerCase())));
+                return key ? row[key] : "";
+            };
+
+            for (let i = 0; i < data.length; i++) {
+                const row = data[i];
+
+                // 1. Fetch Values using smart match
+                let rawCompany = getVal(row, ["company", "party", "client"]);
+                let rawName = getVal(row, ["contact person", "person name", "name"]);
+                let rawContact = getVal(row, ["contact no", "mobile", "phone", "cell"]);
+                let rawEmail = getVal(row, ["email", "mail"]);
+                let rawPurpose = getVal(row, ["purpose"]);
+                let rawRemark = getVal(row, ["remark", "note"]);
+                let rawDate = getVal(row, ["date of contact", "date"]);
+                let rawSno = getVal(row, ["s.no", "sr.no", "serial"]);
+                let rawStatus = getVal(row, ["status"]);
 
                 // --- 2. EMPTY ROW CHECK ---
-                // Agar ye sab khali hain ya sirf space hain, toh SKIP karo
                 if (!String(rawCompany).trim() && !String(rawName).trim() && !String(rawContact).trim()) {
                     continue; 
                 }
 
-                // --- 3. CLEANING ---
+                // --- 3. STRICT CLEANING ---
                 
-                // Company (Max 190 chars)
                 let company = String(rawCompany || "Unknown").trim().substring(0, 190);
-                if (!company) company = "Unknown";
+                if (!company || company.toLowerCase() === "unknown") company = "Unknown Company";
 
-                // Name (Max 90 chars)
                 let name = String(rawName || "Unknown").trim().substring(0, 90);
-                if (!name) name = "Unknown";
+                if (!name || name.toLowerCase() === "unknown") name = "Unknown Person";
 
-                // Contact (Only digits, Max 15 chars)
                 let contact = String(rawContact || "").replace(/[^0-9]/g, '');
-                if (contact.length > 15) contact = contact.slice(-15); // Safe limit
+                if (contact.length > 15) contact = contact.slice(-15);
 
-                // Email (Strict check)
+                // 👇👇 EMAIL FIX (Isi wajah se error aa raha tha) 👇👇
                 let email = String(rawEmail || "").trim().toLowerCase();
-                if (!email.includes("@") || email.length < 5) {
-                    email = ""; // Invalid hai toh blank bhej do (Backend accepts blank)
+                
+                // Regex: Check karega ki @ aur .com/.in hai ya nahi
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                
+                if (!emailRegex.test(email)) {
+                    // Agar format galat hai, toh blank kar do (Backend blank allow karta hai)
+                    email = ""; 
                 }
+                // 👆👆 END EMAIL FIX 👆👆
 
-                // Purpose
-                let purpose = String(row['PURPOSE.1'] || row['PURPOSE'] || "N/A").trim().substring(0, 190);
-
-                // S.No
-                let sno = String(row['  '] || row['S.No'] || "").trim().substring(0, 40);
-
-                // Date (Sabse common error source)
-                let dateVal = row['Date of Contact'];
-                let finalDate = todayStr;
-                if (dateVal) {
-                    try {
-                        const d = new Date(dateVal);
-                        if (!isNaN(d.getTime())) {
-                            finalDate = d.toISOString();
-                        }
-                    } catch(err) {
-                        finalDate = todayStr; // Error aaya toh Aaj ki date
-                    }
-                }
-
+                let purpose = String(rawPurpose).trim().substring(0, 190) || "N/A";
+                let sno = String(rawSno).trim().substring(0, 40);
+                
                 // Note
-                const remarkFromFile = row['REMARK'] || "";
-                const finalNote = remarkFromFile ? `${importNote}: ${remarkFromFile}` : importNote;
+                const finalNote = rawRemark ? `${importNote}: ${rawRemark}` : importNote;
 
-                // --- 4. ADD TO TRUCK ---
+                // Date
+                let finalDate = todayStr;
+                if (rawDate) {
+                    try {
+                        const d = new Date(rawDate);
+                        if (!isNaN(d.getTime())) finalDate = d.toISOString();
+                    } catch (e) {}
+                }
+
+                // Status Check
+                let finalStatus = statusToSet;
+                if (rawStatus) {
+                    const s = String(rawStatus).toUpperCase();
+                    if (s.includes("CONVERT")) finalStatus = "Converted";
+                    else if (s.includes("INTEREST")) finalStatus = "Interested";
+                    else if (s.includes("NEW")) finalStatus = "New";
+                    else if (s.includes("CLOS")) finalStatus = "Closed";
+                }
+
+                // Add to Truck
                 bulkPayload.push({
-                    date: finalDate, 
-                    sno: sno, 
+                    date: finalDate,
+                    sno: sno,
                     company: company,
                     name: name,
                     contact: contact,
-                    email: email, 
+                    email: email, // Ab ye ya toh Valid hoga ya Empty ""
                     address: "",
-                    note: finalNote, 
-                    purpose: purpose, 
-                    status: statusToSet 
+                    note: finalNote,
+                    purpose: purpose,
+                    status: finalStatus
                 });
             }
 
             if (bulkPayload.length === 0) {
-                toast.error("No valid data found!", { id: toastId });
+                toast.error("No valid data found.", { id: toastId });
                 return;
             }
 
+            // Send to Backend
             try {
                 toast.loading(`Uploading ${bulkPayload.length} leads...`, { id: toastId });
                 
@@ -351,31 +366,27 @@ const LeadManager = () => {
                 toast.success(res.data.message, { id: toastId });
                 fetchLeads(); 
             } catch (error) {
-                console.error("Bulk Import Failed:", error);
-                
+                console.error("Import Failed:", error);
                 let errMsg = "Import failed!";
+                
                 if (error.response?.data) {
-                    // Backend se exact error message pakdo
                     if (Array.isArray(error.response.data)) {
-                        // Dhoondo pehla object jo empty nahi hai
-                        const errObj = error.response.data.find(e => Object.keys(e).length > 0);
-                        if (errObj) {
-                            errMsg = `Data Error: ${JSON.stringify(errObj)}`;
-                        } else {
-                            errMsg = "Unknown Data Error";
+                        // Error dhundo
+                        const errIndex = error.response.data.findIndex(e => Object.keys(e).length > 0);
+                        if (errIndex !== -1) {
+                            const errDetail = error.response.data[errIndex];
+                            errMsg = `Row ${errIndex + 1} Error: ${JSON.stringify(errDetail)}`;
                         }
                     } else {
                         errMsg = `Server Error: ${JSON.stringify(error.response.data)}`;
                     }
                 }
-                // Error ko der tak dikhao taaki padh sako
-                toast.error(errMsg, { id: toastId, duration: 10000 });
+                toast.error(errMsg, { id: toastId, duration: 8000 });
             }
             e.target.value = null; 
         };
         reader.readAsArrayBuffer(file);
     };
-    // 👆👆👆 END NEW LOGIC 👆👆👆
     // 👆👆👆 END BULK LOGIC 👆👆👆
 
     const handleSave = async () => {
