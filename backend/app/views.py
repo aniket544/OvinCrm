@@ -45,22 +45,30 @@ class BaseDetailView(generics.RetrieveUpdateDestroyAPIView):
 # ==========================================
 
 # 1. Leads
+# 1. Leads
 class LeadListCreate(BaseListCreateView):
     serializer_class = LeadSerializer
     model = Lead
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
     search_fields = ['name', 'company', 'status', 'contact']
 
-    # 👇👇👇 LOGIC: Tech can see all, Sales can see only own 👇👇👇
+    # 👇👇👇 SHARED VIEW LOGIC 👇👇👇
     def get_queryset(self):
-        if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
-            return Lead.objects.all().order_by('-date')
-        return Lead.objects.filter(owner=self.request.user)
+        # Logic: 
+        # 1. Agar Tech wala hai -> Sab dekh sakta hai (Read Only Permissions.py sambhal lega)
+        # 2. Agar Sales wala hai -> Ab hum filter hata rahe hain taaki wo dusre Sales walo ka data bhi dekh sake.
+        
+        # Simple Rule: Sabko Sabkuch dikhao (Shared CRM)
+        return Lead.objects.all().order_by('-date')
 
+# 👇 Same change LeadDetail mein bhi kar dena taaki click karke edit kar sake
 class LeadDetail(BaseDetailView):
     serializer_class = LeadSerializer
     model = Lead
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
+    
+    def get_queryset(self):
+         return Lead.objects.all()
 
 # 2. Customers
 class CustomerListCreate(BaseListCreateView):

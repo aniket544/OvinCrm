@@ -116,11 +116,17 @@ const LeadManager = () => {
         return now.toISOString().slice(0, 16); 
     };
 
+  // 👇👇👇 UPDATED DATE FORMAT (Year Added) 👇👇👇
     const formatDateTime = (isoString) => {
         if (!isoString) return "";
         const d = new Date(isoString);
         return d.toLocaleString('en-IN', { 
-            day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true 
+            day: '2-digit', 
+            month: 'short', 
+            year: 'numeric', // <--- YE ADD KIYA HAI (2025 dikhega ab)
+            hour: '2-digit', 
+            minute: '2-digit', 
+            hour12: true 
         }); 
     };
 
