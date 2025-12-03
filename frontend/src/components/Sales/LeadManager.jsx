@@ -233,19 +233,21 @@ const LeadManager = () => {
     const handleImportClick = () => fileInputRef.current.click();
     
     // 👇👇👇 ERROR-PROOF BULK IMPORT LOGIC 👇👇👇
+   // 👇👇👇 FINAL IMPORT LOGIC (Empty Row Filter + Smart Status) 👇👇👇
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         const fileName = file.name.toLowerCase();
-        let statusToSet = "New"; 
+        let defaultStatus = "New"; 
         let importNote = "Imported (Raw Data)";
 
+        // File Name se default status decide karo
         if (fileName.includes("follow up")) {
-            statusToSet = "Interested";
+            defaultStatus = "Interested";
             importNote = "Imported (Follow Up Data)";
         } else if (fileName.includes("client")) {
-            statusToSet = "Converted";
+            defaultStatus = "Converted";
             importNote = "Imported (Old Client)";
         }
 
@@ -258,70 +260,85 @@ const LeadManager = () => {
 
             if (data.length === 0) { toast.error("File is empty."); return; }
 
-            const toastId = toast.loading(`Cleaning ${data.length} leads...`);
-            
+            const toastId = toast.loading(`Filtering & Processing ${data.length} rows...`);
             const bulkPayload = [];
 
             for (const row of data) {
-                // --- 1. Company (Must not be empty or too long) ---
-                let company = row['Name of Company'] || row['Company Name'] || row['Party Name'] || "Unknown";
-                company = String(company).trim().substring(0, 199); 
-                if (!company || company.length < 2) company = "Unknown Company"; // Fallback
+                // --- 🛑 STEP 1: EMPTY ROW CHECK (Tera Naya Logic) ---
+                // Raw values check karo (Bina "Unknown" default lagaye)
+                const rawCompany = row['Name of Company'] || row['Company Name'] || row['Party Name'];
+                const rawName = row['Name Contact Person'] || row['Person Name'] || row['Name'];
+                const rawContact = row['Contact No.'] || row['Contact No'] || row['Mobile'];
+                const rawEmail = row['Email.ID'] || row['Email'];
 
-                // --- 2. Name ---
-                let name = row['Name Contact Person'] || row['Person Name'] || row['Name'] || "Unknown";
-                name = String(name).trim().substring(0, 99);
-                if (!name) name = "Unknown Person";
-
-                // --- 3. Contact ---
-                let rawContact = row['Contact No.'] || row['Contact No'] || row['Mobile'] || "";
-                let contact = String(rawContact).replace(/[^0-9]/g, ''); 
-                if (contact.length > 10) contact = contact.slice(-10);
-
-                // --- 4. Email (SUPER STRICT CLEANING) ---
-                let email = row['Email.ID'] || row['Email'] || "";
-                email = String(email).trim().toLowerCase();
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (!emailRegex.test(email)) {
-                    email = ""; // Agar email invalid hai toh usse blank kar do
+                // Agar charo important fields gayab hain, toh is row ko IMPORT MAT KARO
+                // (Sirf tabhi aage badho jab kam se kam ek cheez maujood ho)
+                if (!rawCompany && !rawName && !rawContact && !rawEmail) {
+                    continue; // Skip this row completely
                 }
 
-                // --- 5. Purpose ---
+                // --- 🧹 STEP 2: DATA CLEANING & FILLING ---
+                
+                // 1. Company (Agar khali hai toh 'Unknown' daal do taaki error na aaye)
+                let company = String(rawCompany || "Unknown").trim().substring(0, 199);
+                
+                // 2. Name (Agar khali hai toh 'Unknown' daal do)
+                let name = String(rawName || "Unknown").trim().substring(0, 99);
+                
+                // 3. Contact (Sirf numbers rakho)
+                let contact = String(rawContact || "").replace(/[^0-9]/g, ''); 
+                if (contact.length > 10) contact = contact.slice(-10);
+
+                // 4. Email (Cleaning)
+                let email = String(rawEmail || "").trim().toLowerCase();
+                // Agar email valid nahi hai, toh blank bhej do (taaki backend 400 na de)
+                if (!email.includes("@")) email = ""; 
+
+                // 5. Purpose
                 let purpose = row['PURPOSE.1'] || row['PURPOSE'] || "N/A";
                 purpose = String(purpose).trim().substring(0, 199);
 
-                // --- 6. Date ---
+                // 6. Date
                 let dateVal = row['Date of Contact'];
                 if (!dateVal) dateVal = new Date().toISOString();
                 else {
                     try { dateVal = new Date(dateVal).toISOString(); } catch { dateVal = new Date().toISOString(); }
                 }
 
-                // --- 7. Note ---
-                let remarkFromFile = row['REMARK'] || "";
+                // 7. Note
+                const remarkFromFile = row['REMARK'] || "";
                 const finalNote = remarkFromFile ? `${importNote}: ${remarkFromFile}` : importNote;
 
-                // SKIP LOGIC
-                if (company === "Unknown Company" && name === "Unknown Person") continue;
+                // 8. Status (Excel wala status priority lega)
+                let excelStatus = row['STATUS']; 
+                let finalStatus = defaultStatus;
 
+                if (excelStatus) {
+                    const s = String(excelStatus).toUpperCase().trim();
+                    if (s.includes("PENDING")) finalStatus = "Interested";
+                    else if (s.includes("CONVERTED")) finalStatus = "Converted";
+                    else if (s.includes("INTERESTED")) finalStatus = "Interested";
+                    else if (s.includes("NEW")) finalStatus = "New";
+                }
+
+                // Data Truck mein load karo 🚛
                 bulkPayload.push({
                     date: dateVal, 
-                    company: company,
-                    name: name,
-                    contact: contact,
-                    email: email, 
-                    address: "",
-                    note: finalNote, 
-                    purpose: purpose, 
-                    status: statusToSet 
+                    sno: "", 
+                    company, name, contact, email, address: "",
+                    note: finalNote, purpose, 
+                    status: finalStatus 
                 });
             }
 
-            // Send to Backend
-            try {
-                toast.loading(`Uploading ${bulkPayload.length} clean leads...`, { id: toastId });
-                console.log("Final Payload Preview:", bulkPayload.slice(0, 3)); 
+            // --- STEP 3: SEND TO BACKEND ---
+            if (bulkPayload.length === 0) {
+                toast.error("No valid data found to import.", { id: toastId });
+                return;
+            }
 
+            try {
+                toast.loading(`Uploading ${bulkPayload.length} valid leads...`, { id: toastId });
                 const BULK_URL = `${BASE_URL_FIX}/api/leads/bulk-import/`;
                 const res = await axios.post(BULK_URL, bulkPayload, getAuthHeaders());
                 
@@ -329,21 +346,16 @@ const LeadManager = () => {
                 fetchLeads(); 
             } catch (error) {
                 console.error("Bulk Import Failed:", error);
-                
                 let errMsg = "Import failed!";
                 if (error.response?.data) {
-                    if (Array.isArray(error.response.data)) {
-                         const firstErrorIndex = error.response.data.findIndex(err => Object.keys(err).length > 0);
-                         if (firstErrorIndex !== -1) {
-                             errMsg = `Error at Row ${firstErrorIndex + 1}: ${JSON.stringify(error.response.data[firstErrorIndex])}`;
-                         } else {
-                             errMsg = "Unknown Data Error (Check constraints)";
-                         }
-                    } else {
-                        errMsg = `Server Error: ${JSON.stringify(error.response.data)}`;
-                    }
+                     if (Array.isArray(error.response.data)) {
+                         const firstError = error.response.data.find(err => Object.keys(err).length > 0);
+                         errMsg = firstError ? `Data Error: ${JSON.stringify(firstError)}` : "Unknown Data Error";
+                     } else {
+                         errMsg = `Server Error: ${JSON.stringify(error.response.data)}`;
+                     }
                 }
-                toast.error(errMsg, { id: toastId, duration: 8000 });
+                toast.error(errMsg, { id: toastId, duration: 6000 });
             }
             e.target.value = null; 
         };
