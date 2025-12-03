@@ -180,7 +180,7 @@ const LeadManager = () => {
 
     const handleImportClick = () => fileInputRef.current.click();
     
-    // 👇👇👇 BULLETPROOF IMPORT LOGIC 👇👇👇
+    // 👇👇👇 ERROR-PROOF BULK IMPORT LOGIC 👇👇👇
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -206,82 +206,72 @@ const LeadManager = () => {
 
             if (data.length === 0) { toast.error("File is empty."); return; }
 
-            const toastId = toast.loading(`Processing ${data.length} leads...`);
+            const toastId = toast.loading(`Cleaning ${data.length} leads...`);
             
             const bulkPayload = [];
-            const todayStr = new Date().toISOString(); // Fallback date
 
             for (const row of data) {
-                // 1. Company
+                // --- 1. Company (Must not be empty or too long) ---
                 let company = row['Name of Company'] || row['Company Name'] || row['Party Name'] || "Unknown";
-                company = String(company).trim().substring(0, 199); // Limit length
+                company = String(company).trim().substring(0, 199); 
+                if (!company || company.length < 2) company = "Unknown Company"; // Fallback
 
-                // 2. Name
+                // --- 2. Name ---
                 let name = row['Name Contact Person'] || row['Person Name'] || row['Name'] || "Unknown";
                 name = String(name).trim().substring(0, 99);
-                
-                // 3. Contact
+                if (!name) name = "Unknown Person";
+
+                // --- 3. Contact ---
                 let rawContact = row['Contact No.'] || row['Contact No'] || row['Mobile'] || "";
                 let contact = String(rawContact).replace(/[^0-9]/g, ''); 
                 if (contact.length > 10) contact = contact.slice(-10);
+                // Agar contact khali hai, toh skip mat karo, bas blank bhej do (Backend shayad allow kare)
+                // Agar backend contact require karta hai, toh yahan 'if (!contact) continue;' laga dena.
 
-                // 4. Email (Strict Cleaning)
+                // --- 4. Email (SUPER STRICT CLEANING) ---
                 let email = row['Email.ID'] || row['Email'] || "";
-                email = String(email).trim();
-                // Invalid email ko empty string banao, warna Backend 400 dega
-                if (email.length < 5 || !email.includes("@")) email = ""; 
-
-                // 5. Purpose
-                let purpose = row['PURPOSE.1'] || row['PURPOSE'] || "N/A";
-                purpose = String(purpose).substring(0, 199);
-
-                // 6. Address
-                let address = row['Address'] || "";
-                address = String(address).substring(0, 250);
-
-                // 7. Date Handling (Sabse important fix)
-                let dateVal = row['Date of Contact'];
-                let finalDate = todayStr;
-                
-                if (dateVal) {
-                    // Excel kabhi kabhi date ko number deta hai, kabhi text
-                    const d = new Date(dateVal);
-                    // Agar date valid hai, toh use karo, warna Today
-                    if (!isNaN(d.getTime())) {
-                        finalDate = d.toISOString();
-                    }
+                email = String(email).trim().toLowerCase();
+                // Valid email regex
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(email)) {
+                    email = ""; // Agar email invalid hai toh usse blank kar do
                 }
 
-                // 8. Note
+                // --- 5. Purpose ---
+                let purpose = row['PURPOSE.1'] || row['PURPOSE'] || "N/A";
+                purpose = String(purpose).trim().substring(0, 199);
+
+                // --- 6. Date ---
+                let dateVal = row['Date of Contact'];
+                if (!dateVal) dateVal = new Date().toISOString();
+                else {
+                    try { dateVal = new Date(dateVal).toISOString(); } catch { dateVal = new Date().toISOString(); }
+                }
+
+                // --- 7. Note ---
                 let remarkFromFile = row['REMARK'] || "";
                 const finalNote = remarkFromFile ? `${importNote}: ${remarkFromFile}` : importNote;
-                
-                // 9. S.No (Agar Excel me '  ' ya 'S.No' naam ka column ho)
-                let sno = row['  '] || row['S.No'] || row['Sr.No'] || "";
-                sno = String(sno);
 
-                // Skip if purely empty
-                if (company === "Unknown" && name === "Unknown") continue;
+                // SKIP LOGIC: Agar Company aur Name dono bekaar hain toh mat lo
+                if (company === "Unknown Company" && name === "Unknown Person") continue;
 
                 bulkPayload.push({
-                    date: finalDate, // ✅ Fixed Date
-                    sno: sno,        // ✅ Added S.No
+                    date: dateVal, 
                     company: company,
                     name: name,
                     contact: contact,
                     email: email, 
-                    address: address,
+                    address: "",
                     note: finalNote, 
                     purpose: purpose, 
                     status: statusToSet 
                 });
             }
 
+            // Send to Backend
             try {
-                toast.loading(`Uploading ${bulkPayload.length} leads...`, { id: toastId });
-                
-                // Console me data check karne ke liye (Debugging)
-                console.log("Sending Payload:", bulkPayload);
+                toast.loading(`Uploading ${bulkPayload.length} clean leads...`, { id: toastId });
+                console.log("Final Payload Preview:", bulkPayload.slice(0, 3)); // Debugging ke liye
 
                 const BULK_URL = `${BASE_URL_FIX}/api/leads/bulk-import/`;
                 const res = await axios.post(BULK_URL, bulkPayload, getAuthHeaders());
@@ -291,19 +281,27 @@ const LeadManager = () => {
             } catch (error) {
                 console.error("Bulk Import Failed:", error);
                 
-                // 👇 ERROR HANDLING JO BATAEGA KYA GALAT HAI 👇
                 let errMsg = "Import failed!";
-                if (error.response) {
-                    console.log("Backend Error Details:", error.response.data); // Console check karna
-                    errMsg = `Server Error: Check Console for details.`;
+                if (error.response?.data) {
+                    // Detailed error finding
+                    if (Array.isArray(error.response.data)) {
+                         // Find first object that is NOT empty
+                         const firstErrorIndex = error.response.data.findIndex(err => Object.keys(err).length > 0);
+                         if (firstErrorIndex !== -1) {
+                             errMsg = `Error at Row ${firstErrorIndex + 1}: ${JSON.stringify(error.response.data[firstErrorIndex])}`;
+                         } else {
+                             errMsg = "Unknown Data Error (Check constraints)";
+                         }
+                    } else {
+                        errMsg = `Server Error: ${JSON.stringify(error.response.data)}`;
+                    }
                 }
-                toast.error(errMsg, { id: toastId, duration: 5000 });
+                toast.error(errMsg, { id: toastId, duration: 8000 });
             }
             e.target.value = null; 
         };
         reader.readAsArrayBuffer(file);
     };
-    // 👆👆👆 REPLACE THIS FUNCTION 👆👆👆
     // 👆👆👆 END BULK LOGIC 👆👆👆
 
     const handleSave = async () => {
