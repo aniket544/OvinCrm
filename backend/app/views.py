@@ -9,42 +9,38 @@ from .permissions import IsSalesTeamOrReadOnly, IsTechTeamOrReadOnly
 from .serializers import CustomTokenObtainPairSerializer 
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-# --- 1. Custom Login View (Role bhejne ke liye) ---
+# ==========================================
+#       AUTHENTICATION
+# ==========================================
 class CustomLoginView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
-# --- 2. Registration View ---
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     permission_classes = (permissions.AllowAny,)
     serializer_class = RegisterSerializer
 
-# --- 3. Base Views (Common Logic) ---
+# ==========================================
+#       BASE VIEWS
+# ==========================================
 class BaseListCreateView(generics.ListCreateAPIView):
-    # Search aur Ordering enable kar rahe hain
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     
     def get_queryset(self):
-        # Admin sabka data dekh sakta hai
-        if self.request.user.is_superuser:
-            return self.model.objects.all()
-        return self.model.objects.filter(owner=self.request.user)
+        return self.model.objects.all()
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
 
 class BaseDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
-        if self.request.user.is_superuser:
-            return self.model.objects.all()
-        return self.model.objects.filter(owner=self.request.user)
+        return self.model.objects.all()
 
 
 # ==========================================
-#       SALES TEAM VIEWS (Sales Edit, Tech Read-Only)
+#       SALES TEAM VIEWS (Shared Data)
 # ==========================================
 
-# 1. Leads
 # 1. Leads
 class LeadListCreate(BaseListCreateView):
     serializer_class = LeadSerializer
@@ -52,16 +48,9 @@ class LeadListCreate(BaseListCreateView):
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
     search_fields = ['name', 'company', 'status', 'contact']
 
-    # 👇👇👇 SHARED VIEW LOGIC 👇👇👇
     def get_queryset(self):
-        # Logic: 
-        # 1. Agar Tech wala hai -> Sab dekh sakta hai (Read Only Permissions.py sambhal lega)
-        # 2. Agar Sales wala hai -> Ab hum filter hata rahe hain taaki wo dusre Sales walo ka data bhi dekh sake.
-        
-        # Simple Rule: Sabko Sabkuch dikhao (Shared CRM)
         return Lead.objects.all().order_by('-date')
 
-# 👇 Same change LeadDetail mein bhi kar dena taaki click karke edit kar sake
 class LeadDetail(BaseDetailView):
     serializer_class = LeadSerializer
     model = Lead
@@ -78,14 +67,15 @@ class CustomerListCreate(BaseListCreateView):
     search_fields = ['name', 'company', 'email']
 
     def get_queryset(self):
-        if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
-            return Customer.objects.all().order_by('-id')
-        return Customer.objects.all(owner=self.request.user)
+        return Customer.objects.all().order_by('-date')
 
 class CustomerDetail(BaseDetailView):
     serializer_class = CustomerSerializer
     model = Customer
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
+    
+    def get_queryset(self):
+         return Customer.objects.all()
 
 # 3. Payments
 class PaymentListCreate(BaseListCreateView):
@@ -95,16 +85,17 @@ class PaymentListCreate(BaseListCreateView):
     search_fields = ['company', 'invoice', 'so_no']
 
     def get_queryset(self):
-        if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
-            return Payment.objects.all().order_by('-id')
-        return Payment.objects.filter(owner=self.request.user)
+        return Payment.objects.all().order_by('-id')
 
 class PaymentDetail(BaseDetailView):
     serializer_class = PaymentSerializer
     model = Payment
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
+    
+    def get_queryset(self):
+         return Payment.objects.all()
 
-# 4. Sales Tasks (Follow Ups)
+# 4. Sales Tasks
 class SalesTaskListCreate(BaseListCreateView):
     serializer_class = SalesTaskSerializer
     model = SalesTask
@@ -112,18 +103,19 @@ class SalesTaskListCreate(BaseListCreateView):
     search_fields = ['lead_name', 'company', 'status']
 
     def get_queryset(self):
-        if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
-            return SalesTask.objects.all().order_by('-date')
-        return SalesTask.objects.all(owner=self.request.user)
+        return SalesTask.objects.all().order_by('-date')
 
 class SalesTaskDetail(BaseDetailView):
     serializer_class = SalesTaskSerializer
     model = SalesTask
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
+    
+    def get_queryset(self):
+        return SalesTask.objects.all()
 
 
 # ==========================================
-#       TECH TEAM VIEWS (Tech Edit, Sales Read-Only)
+#       TECH TEAM VIEWS (Restricted)
 # ==========================================
 
 # 5. Tasks (Technical)
@@ -134,24 +126,20 @@ class TaskListCreate(BaseListCreateView):
     search_fields = ['task_name', 'company_name', 'status', 'priority']
 
     def get_queryset(self):
-        # Tech user ya Superuser ko sab dikhega
+        # Tech: Sab dikhega. Sales: Sirf apna.
         if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
             return Task.objects.all().order_by('-date')
-        # Sales wale ko sirf wahi dikhega jo usne 'Go Through' se bheja hai
         return Task.objects.filter(owner=self.request.user)
 
-# 👇👇 YE CLASS ZARURI HAI (WARN: MISSING THI) 👇👇
 class TaskDetail(BaseDetailView):
     serializer_class = TaskSerializer
     model = Task
     permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly]
 
-    # Tech sab edit kar sakta hai, Sales sirf apna
     def get_queryset(self):
         if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
             return Task.objects.all()
         return Task.objects.filter(owner=self.request.user)
-# 👆👆
 
 # 6. Tenders
 class TenderListCreate(BaseListCreateView):
@@ -161,7 +149,7 @@ class TenderListCreate(BaseListCreateView):
     search_fields = ['company', 'bid_no', 'status']
 
     def get_queryset(self):
-        return Tender.objects.all().order_by('-date') # Sabko sab data dikhega
+        return Tender.objects.all().order_by('-date')
 
 class TenderDetail(BaseDetailView):
     serializer_class = TenderSerializer
@@ -176,7 +164,7 @@ class TechDataListCreate(BaseListCreateView):
     search_fields = ['company', 'machine', 'serial']
 
     def get_queryset(self):
-        return TechData.objects.all().order_by('-id') # Sabko sab data dikhega
+        return TechData.objects.all().order_by('-id')
 
 class TechDataDetail(BaseDetailView):
     serializer_class = TechDataSerializer
@@ -194,7 +182,7 @@ class ConvertLeadToPayment(APIView):
 
     def post(self, request, pk):
         try:
-            lead = Lead.objects.get(pk=pk, owner=request.user)
+            lead = Lead.objects.get(pk=pk) # Shared access
             data = request.data
             
             if lead.status == 'Converted':
@@ -213,8 +201,7 @@ class ConvertLeadToPayment(APIView):
                 invoice=data.get('invoice', 'Pending'),
                 remark=data.get('remark', f"Converted from Lead: {lead.name}"),
             )
-
-            return Response({"message": "Deal finalized and Payment record created!"}, status=status.HTTP_200_OK)
+            return Response({"message": "Deal finalized!"}, status=status.HTTP_200_OK)
 
         except Lead.DoesNotExist:
             return Response({"error": "Lead not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -222,16 +209,14 @@ class ConvertLeadToPayment(APIView):
              return Response({"error": f"Database error: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
 
-# 2. Go Through: Payment -> Task (System Task)
+# 2. Go Through: Payment -> Task
 class CreateTaskFromPayment(APIView):
     permission_classes = [permissions.IsAuthenticated] 
 
     def post(self, request, pk):
         try:
-            payment = Payment.objects.get(pk=pk, owner=request.user)
+            payment = Payment.objects.get(pk=pk) # Shared access
             data = request.data 
-            
-            task_title = data.get('task_name', 'Auto Created Task')
             
             Task.objects.create(
                 owner=request.user,
@@ -240,26 +225,25 @@ class CreateTaskFromPayment(APIView):
                 client_id=data.get('client_id', ''),
                 gem_id=data.get('gem_id', ''),
                 gem_password=data.get('gem_password', ''),
-                task_name=task_title,
+                task_name=data.get('task_name', 'Auto Created Task'),
                 priority=data.get('priority', 'Medium'), 
                 status="Pending"
             )
-
             return Response({"message": "Sent to Task Manager!"}, status=status.HTTP_200_OK)
 
         except Payment.DoesNotExist:
-            return Response({"error": "Payment record not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "Payment not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": "Task creation failed."}, status=status.HTTP_400_BAD_REQUEST)
 
 
-# 3. Lead -> Sales Task (Follow Up)
+# 3. Lead -> Sales Task
 class MoveLeadToSalesTask(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, pk):
         try:
-            lead = Lead.objects.get(pk=pk, owner=request.user)
+            lead = Lead.objects.get(pk=pk) # Shared access
             data = request.data
             
             SalesTask.objects.create(
@@ -277,54 +261,39 @@ class MoveLeadToSalesTask(APIView):
             
             lead.status = 'Interested' 
             lead.save()
-
             return Response({"message": "Added to Sales Task Manager!"}, status=status.HTTP_200_OK)
 
         except Lead.DoesNotExist:
             return Response({"error": "Lead not found"}, status=status.HTTP_404_NOT_FOUND)
-        
 
-
-
-
-        # ... (Upar ka code same rahega)
 
 # ==========================================
-#       BULK IMPORT VIEW (Rocket 🚀)
+#       BULK OPERATIONS
 # ==========================================
+
+# 4. Bulk Import
 class LeadBulkImport(APIView):
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
 
     def post(self, request):
-        # Check karo ki data List (Array) hai ya nahi
         if not isinstance(request.data, list):
-            return Response({"error": "Data must be a list of leads"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Data must be a list"}, status=status.HTTP_400_BAD_REQUEST)
         
-        # 'many=True' ka matlab hai hum list bhej rahe hain
         serializer = LeadSerializer(data=request.data, many=True, context={'request': request})
-        
         if serializer.is_valid():
-            # Saara data ek baar mein save karo (Owner set karke)
             serializer.save(owner=request.user)
-            return Response({"message": f"Successfully imported {len(request.data)} leads!"}, status=status.HTTP_201_CREATED)
+            return Response({"message": f"Imported {len(request.data)} leads!"}, status=status.HTTP_201_CREATED)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
-        # ... (Baaki imports)
-
-# ==========================================
-#       BULK DELETE VIEW (Safai Abhiyan 🧹)
-# ==========================================
+# 5. Bulk Delete
 class LeadBulkDelete(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly] # Sirf Sales delete kar payega
+    permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
 
     def post(self, request):
         ids = request.data.get('ids', [])
-        if not ids or not isinstance(ids, list):
+        if not ids:
             return Response({"error": "No IDs provided"}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Delete leads where ID is in the list
-        deleted_count, _ = Lead.objects.filter(id__in=ids, owner=request.user).delete()
-        
-        return Response({"message": f"Deleted {deleted_count} leads successfully!"}, status=status.HTTP_200_OK)
+        deleted_count, _ = Lead.objects.filter(id__in=ids).delete()
+        return Response({"message": f"Deleted {deleted_count} leads!"}, status=status.HTTP_200_OK)
