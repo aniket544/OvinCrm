@@ -8,15 +8,14 @@ urlpatterns = [
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('register/', RegisterView.as_view(), name='register'),
 
+    # --- Dashboard ---
+    path('dashboard/stats/', DashboardStats.as_view(), name='dashboard-stats'),
+
     # --- Leads ---
     path('leads/', LeadListCreate.as_view(), name='lead-list'),
     path('leads/<int:pk>/', LeadDetail.as_view(), name='lead-detail'),
-    
-    # 👇👇👇 NEW BULK IMPORT URL (Ye line add ki hai) 👇👇👇
-    path('leads/bulk-import/', LeadBulkImport.as_view(), name='lead-bulk-import'),
-    # 👆👆👆
-    # ... Bulk Import ke niche ...
-    path('leads/bulk-delete/', LeadBulkDelete.as_view(), name='lead-bulk-delete'),
+    path('leads/bulk-import/', LeadBulkImport.as_view(), name='lead-bulk-import'), # 🚛 Import
+    path('leads/bulk-delete/', LeadBulkDelete.as_view(), name='lead-bulk-delete'), # 🧹 Delete
 
     # --- Customers ---
     path('customers/', CustomerListCreate.as_view(), name='customer-list'),
@@ -46,12 +45,12 @@ urlpatterns = [
     #       CUSTOM LOGIC (Magic 🪄)
     # ==========================================
     
-    # 1. Lead se Payment create karna (Convert)
+    # 1. Lead -> Payment (Convert)
     path('leads/<int:pk>/convert/', ConvertLeadToPayment.as_view(), name='lead-to-payment'), 
     
-    # 2. Payment se Technical Task create karna (Go Through)
+    # 2. Payment -> Technical Task (Go Through)
     path('payments/<int:pk>/go-thru/', CreateTaskFromPayment.as_view(), name='payment-to-task'),
     
-    # 3. Lead se Sales Task (Follow Up) create karna
+    # 3. Lead -> Sales Task (Follow Up)
     path('leads/<int:pk>/to-sales-task/', MoveLeadToSalesTask.as_view(), name='lead-to-sales'),
 ]

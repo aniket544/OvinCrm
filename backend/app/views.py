@@ -8,6 +8,8 @@ from datetime import date
 from .permissions import IsSalesTeamOrReadOnly, IsTechTeamOrReadOnly
 from .serializers import CustomTokenObtainPairSerializer 
 from rest_framework_simplejwt.views import TokenObtainPairView
+from django.db.models import Sum, Count, Q
+from datetime import date   
 
 # ==========================================
 #       AUTHENTICATION
@@ -344,3 +346,75 @@ class LeadBulkDelete(APIView):
         
         deleted_count, _ = Lead.objects.filter(id__in=ids).delete()
         return Response({"message": f"Deleted {deleted_count} leads!"}, status=status.HTTP_200_OK)
+    
+
+
+
+
+
+    class DashboardStats(APIView):
+     permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        data = {}
+        today = date.today()
+
+        # --- 1. CHECK ROLE ---
+        is_sales = user.groups.filter(name='Sales').exists()
+        is_tech = user.groups.filter(name='Tech').exists()
+        is_manager = user.is_superuser
+
+        # --- 2. GATHER DATA BASED ON ROLE ---
+        
+        # 🟢 SALES DATA (Sales & Manager ke liye)
+        if is_sales or is_manager:
+            # Leads Info
+            if is_manager:
+                leads_qs = Lead.objects.all()
+            else:
+                leads_qs = Lead.objects.filter(owner=user)
+            
+            data['total_leads'] = leads_qs.count()
+            data['new_leads'] = leads_qs.filter(status='New').count()
+            data['interested_leads'] = leads_qs.filter(status='Interested').count()
+            data['converted_leads'] = leads_qs.filter(status='Converted').count()
+            
+            # Todays Follow Ups
+            if is_manager:
+                data['todays_calls'] = SalesTask.objects.filter(next_follow_up=today).count()
+            else:
+                data['todays_calls'] = SalesTask.objects.filter(owner=user, next_follow_up=today).count()
+
+            # Revenue (Only visible if Manager or Sales)
+            # Note: Sales wale ko sirf apni revenue dikhegi, Manager ko Total
+            if is_manager:
+                revenue = Payment.objects.aggregate(Sum('amount'))['amount__sum'] or 0
+            else:
+                revenue = Payment.objects.filter(owner=user).aggregate(Sum('amount'))['amount__sum'] or 0
+            data['total_revenue'] = revenue
+
+        # 🔴 TECH DATA (Tech & Manager ke liye)
+        if is_tech or is_manager:
+            # Pending Tasks
+            if is_manager:
+                tasks_qs = Task.objects.all()
+            else:
+                # Tech wale ko sab dikhta hai
+                tasks_qs = Task.objects.all()
+
+            data['pending_tasks'] = tasks_qs.filter(status='Pending').count()
+            data['high_priority_tasks'] = tasks_qs.filter(priority='High', status='Pending').count()
+            
+            # Upcoming Service Dues (Customer Data)
+            data['service_due'] = TechData.objects.filter(service_due__gte=today).count()
+            
+            # Live Tenders
+            data['active_tenders'] = Tender.objects.exclude(status__in=['Won', 'Lost']).count()
+
+        # Role bhejo taaki Frontend UI adjust kar sake
+        if is_manager: data['role_view'] = 'Manager'
+        elif is_tech: data['role_view'] = 'Tech'
+        else: data['role_view'] = 'Sales'
+
+        return Response(data)
