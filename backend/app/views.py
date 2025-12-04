@@ -353,9 +353,10 @@ class LeadBulkDelete(APIView):
 
 
 class DashboardStats(APIView):
- permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
 
-def get(self, request):
+    # 👇 Ye 'def get' hona zaroori hai. Agar ye nahi hoga toh 405 Error aayega.
+    def get(self, request):
         user = request.user
         data = {}
         today = date.today()
@@ -370,7 +371,10 @@ def get(self, request):
         # 🟢 SALES DATA (Sales & Manager ke liye)
         if is_sales or is_manager:
             # Leads Info
-            leads_qs = Lead.objects.all() # Shared Access
+            if is_manager:
+                leads_qs = Lead.objects.all()
+            else:
+                leads_qs = Lead.objects.all() # Shared Access Logic (Pehle filter(owner=user) tha)
             
             data['total_leads'] = leads_qs.count()
             data['new_leads'] = leads_qs.filter(status='New').count()
@@ -378,7 +382,10 @@ def get(self, request):
             data['converted_leads'] = leads_qs.filter(status='Converted').count()
             
             # Todays Follow Ups
-            data['todays_calls'] = SalesTask.objects.filter(next_follow_up=today).count()
+            if is_manager:
+                data['todays_calls'] = SalesTask.objects.filter(next_follow_up=today).count()
+            else:
+                data['todays_calls'] = SalesTask.objects.filter(next_follow_up=today).count() # Shared Access hai toh sab dekh sakte hain
 
             # Revenue
             revenue = Payment.objects.aggregate(Sum('amount'))['amount__sum'] or 0
@@ -387,18 +394,21 @@ def get(self, request):
         # 🔴 TECH DATA (Tech & Manager ke liye)
         if is_tech or is_manager:
             # Tech Tasks
-            tasks_qs = Task.objects.all()
+            if is_manager:
+                tasks_qs = Task.objects.all()
+            else:
+                tasks_qs = Task.objects.all()
 
             data['pending_tasks'] = tasks_qs.filter(status='Pending').count()
             data['high_priority_tasks'] = tasks_qs.filter(priority='High', status='Pending').count()
             
-            # Upcoming Service Dues (Customer Data)
+            # Upcoming Service Dues
             data['service_due'] = TechData.objects.filter(service_due__gte=today).count()
             
             # Live Tenders
             data['active_tenders'] = Tender.objects.exclude(status__in=['Won', 'Lost']).count()
 
-        # Role bhejo taaki Frontend UI adjust kar sake
+        # Role identify karke bhejo
         if is_manager: data['role_view'] = 'Manager'
         elif is_tech: data['role_view'] = 'Tech'
         else: data['role_view'] = 'Sales'
