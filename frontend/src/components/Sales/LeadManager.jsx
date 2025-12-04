@@ -3,6 +3,7 @@ import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 
+
 // --- 1. FOLLOW UP MODAL COMPONENT (Helper) ---
 const FollowUpModal = ({ lead, onClose, onConfirm }) => {
     const today = new Date().toISOString().split('T')[0];
@@ -167,7 +168,7 @@ const LeadManager = () => {
     const purposeOptions = [
         "TENDER MANAGMENT", "VENDOR ASSESSMENT", "GEM REGISTRATION", "DIRECT ORDER",
         "DIRECT LINK", "NOT INTRESTED", "STARTUP INDIA CERTIFICATE",
-        "BUSINESS DEVELOPEMENT SERVICES", "L1", "TRAINING GEM"
+        "OEM AUTHORIZATION", "L1", "TRAINING GEM"
     ];
 
     useEffect(() => { fetchLeads(); }, []);
@@ -176,7 +177,7 @@ const LeadManager = () => {
         try {
             const headers = getAuthHeaders();
             const response = await axios.get(LEAD_API_URL, headers);
-            setLeads(response.data);
+          setLeads(response.data.sort((a, b) => b.id - a.id));
         } catch (error) { 
             console.error(error);
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
@@ -394,7 +395,7 @@ const LeadManager = () => {
         try {
             const headers = getAuthHeaders();
             const res = await axios.post(LEAD_API_URL, newLead, headers);
-            setLeads([...leads, res.data]);
+            setLeads([res.data, ...leads]);
             setNewLead({ date: getCurrentDateTime(), sno: '', company: '', name: '', contact: '', email: '', address: '', note: '', purpose: '', status: 'New' });
             toast.success("Saved Successfully!");
         } catch (error) { 

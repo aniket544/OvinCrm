@@ -9,7 +9,16 @@ from .permissions import IsSalesTeamOrReadOnly, IsTechTeamOrReadOnly
 from .serializers import CustomTokenObtainPairSerializer 
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.db.models import Sum, Count, Q
+from rest_framework.pagination import PageNumberPagination
+from rest_framework import viewsets
 
+# ==========================================
+#       PAGINATION CLASS (🚀 Fast Loading)
+# ==========================================
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 20  # Ek baar mein sirf 20 leads aayengi
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 # ==========================================
 #       AUTHENTICATION
@@ -49,6 +58,9 @@ class LeadListCreate(BaseListCreateView):
     model = Lead
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
     search_fields = ['name', 'company', 'status', 'contact']
+    
+    # 👇👇👇 PAGINATION ADDED HERE 👇👇👇
+    pagination_class = StandardResultsSetPagination 
 
     # 👇👇👇 NEW SECURE LOGIC 👇👇👇
     def get_queryset(self):
@@ -56,11 +68,10 @@ class LeadListCreate(BaseListCreateView):
         
         # Agar User 'Sales' ya 'Tech' Group ka hai, tabhi SABKO SABKA data dikhega
         if user.groups.filter(name__in=['Sales', 'Tech']).exists() or user.is_superuser:
-            return Lead.objects.all().order_by('-date')
+            return Lead.objects.all().order_by('-id') # Changed to -id for consistent sorting
         
         # Agar koi Normal User hai (Bina Group wala), toh usse SALES ka data NAHI dikhega
-        # Wo sirf apna data dekh payega (Jo ki empty hoga)
-        return Lead.objects.filter(owner=user).order_by('-date')
+        return Lead.objects.filter(owner=user).order_by('-id')
 
 class LeadDetail(BaseDetailView):
     serializer_class = LeadSerializer
@@ -347,9 +358,6 @@ class LeadBulkDelete(APIView):
         deleted_count, _ = Lead.objects.filter(id__in=ids).delete()
         return Response({"message": f"Deleted {deleted_count} leads!"}, status=status.HTTP_200_OK)
     
-
-
-
 
 
 class DashboardStats(APIView):
