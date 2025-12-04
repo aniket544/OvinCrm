@@ -412,35 +412,36 @@ const LeadManager = () => {
     };
     
     const confirmMoveToSales = async (lead, date, priority, remarks) => {
-        const toastId = toast.loading("Creating Task...");
-        const headers = getAuthHeaders();
+    const toastId = toast.loading("Creating Task...");
+    const headers = getAuthHeaders();
 
-        const taskPayload = {
-            lead_name: lead.name,
-            company: lead.company,
-            contact: lead.contact,
-            task_type: 'Call',
-            next_follow_up: followUpDate,
-            priority: priority,
-            remarks: remarks,
-            date: getCurrentDateTime().split('T')[0],
-        };
-
-        try {
-            await axios.post(TASK_API_URL, taskPayload, headers); 
-            await axios.patch(`${LEAD_API_URL}${lead.id}/`, { status: 'Interested' }, headers); 
-
-            setLeads(leads.map(l => l.id === lead.id ? { ...l, status: 'Interested' } : l));
-            toast.success("Task Created and Lead Updated! 📞", { id: toastId });
-            setShowModal(false); 
-        } catch (error) { 
-            const message = error.message.includes("Unauthorized") || error.response?.status === 401
-                ? "Unauthorized: Please log in first." 
-                : "Task creation failed.";
-            toast.error(message, { id: toastId }); 
-            setShowModal(false);
-        }
+    const taskPayload = {
+        lead_name: lead.name,
+        company: lead.company,
+        contact: lead.contact,
+        task_type: 'Call',
+        next_follow_up: date, // <--- Yahan 'date' use karo
+        priority: priority,
+        remarks: remarks,
+        date: getCurrentDateTime().split('T')[0],
     };
+
+    try {
+        await axios.post(TASK_API_URL, taskPayload, headers); 
+        await axios.patch(`${LEAD_API_URL}${lead.id}/`, { status: 'Interested' }, headers); 
+
+        setLeads(leads.map(l => l.id === lead.id ? { ...l, status: 'Interested' } : l));
+        toast.success("Task Created and Lead Updated! 📞", { id: toastId });
+        setShowModal(false); 
+    } catch (error) { 
+        // ... error handling same rahega
+        const message = error.message.includes("Unauthorized") || error.response?.status === 401
+            ? "Unauthorized: Please log in first." 
+            : "Task creation failed.";
+        toast.error(message, { id: toastId }); 
+        setShowModal(false);
+    }
+};
 
     const handleConvertTrigger = (lead) => {
         const leadToConvert = leads.find(l => l.id === lead.id); 
