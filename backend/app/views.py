@@ -38,7 +38,7 @@ class BaseDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 # ==========================================
-#       SALES TEAM VIEWS (Shared Data)
+#       SALES TEAM VIEWS (Secured Shared Access)
 # ==========================================
 
 # 1. Leads
@@ -48,16 +48,30 @@ class LeadListCreate(BaseListCreateView):
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
     search_fields = ['name', 'company', 'status', 'contact']
 
+    # 👇👇👇 NEW SECURE LOGIC 👇👇👇
     def get_queryset(self):
-        return Lead.objects.all().order_by('-date')
+        user = self.request.user
+        
+        # Agar User 'Sales' ya 'Tech' Group ka hai, tabhi SABKO SABKA data dikhega
+        if user.groups.filter(name__in=['Sales', 'Tech']).exists() or user.is_superuser:
+            return Lead.objects.all().order_by('-date')
+        
+        # Agar koi Normal User hai (Bina Group wala), toh usse SALES ka data NAHI dikhega
+        # Wo sirf apna data dekh payega (Jo ki empty hoga)
+        return Lead.objects.filter(owner=user).order_by('-date')
 
 class LeadDetail(BaseDetailView):
     serializer_class = LeadSerializer
     model = Lead
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
     
+    # Detail view me bhi same logic (Security ke liye)
     def get_queryset(self):
-         return Lead.objects.all()
+        user = self.request.user
+        if user.groups.filter(name__in=['Sales', 'Tech']).exists() or user.is_superuser:
+            return Lead.objects.all()
+        return Lead.objects.filter(owner=user)
+
 
 # 2. Customers
 class CustomerListCreate(BaseListCreateView):
@@ -67,7 +81,10 @@ class CustomerListCreate(BaseListCreateView):
     search_fields = ['name', 'company', 'email']
 
     def get_queryset(self):
-        return Customer.objects.all().order_by('-date')
+        user = self.request.user
+        if user.groups.filter(name__in=['Sales', 'Tech']).exists() or user.is_superuser:
+            return Customer.objects.all().order_by('-date')
+        return Customer.objects.filter(owner=user).order_by('-date')
 
 class CustomerDetail(BaseDetailView):
     serializer_class = CustomerSerializer
@@ -75,7 +92,11 @@ class CustomerDetail(BaseDetailView):
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
     
     def get_queryset(self):
-         return Customer.objects.all()
+        user = self.request.user
+        if user.groups.filter(name__in=['Sales', 'Tech']).exists() or user.is_superuser:
+            return Customer.objects.all()
+        return Customer.objects.filter(owner=user)
+
 
 # 3. Payments
 class PaymentListCreate(BaseListCreateView):
@@ -85,7 +106,10 @@ class PaymentListCreate(BaseListCreateView):
     search_fields = ['company', 'invoice', 'so_no']
 
     def get_queryset(self):
-        return Payment.objects.all().order_by('-id')
+        user = self.request.user
+        if user.groups.filter(name__in=['Sales', 'Tech']).exists() or user.is_superuser:
+            return Payment.objects.all().order_by('-id')
+        return Payment.objects.filter(owner=user).order_by('-id')
 
 class PaymentDetail(BaseDetailView):
     serializer_class = PaymentSerializer
@@ -93,7 +117,11 @@ class PaymentDetail(BaseDetailView):
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
     
     def get_queryset(self):
-         return Payment.objects.all()
+        user = self.request.user
+        if user.groups.filter(name__in=['Sales', 'Tech']).exists() or user.is_superuser:
+            return Payment.objects.all()
+        return Payment.objects.filter(owner=user)
+
 
 # 4. Sales Tasks
 class SalesTaskListCreate(BaseListCreateView):
@@ -103,19 +131,24 @@ class SalesTaskListCreate(BaseListCreateView):
     search_fields = ['lead_name', 'company', 'status']
 
     def get_queryset(self):
-        return SalesTask.objects.all().order_by('-date')
+        user = self.request.user
+        if user.groups.filter(name__in=['Sales', 'Tech']).exists() or user.is_superuser:
+            return SalesTask.objects.all().order_by('-date')
+        return SalesTask.objects.filter(owner=user).order_by('-date')
 
 class SalesTaskDetail(BaseDetailView):
     serializer_class = SalesTaskSerializer
     model = SalesTask
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
-    
-    def get_queryset(self):
-        return SalesTask.objects.all()
 
+    def get_queryset(self):
+        user = self.request.user
+        if user.groups.filter(name__in=['Sales', 'Tech']).exists() or user.is_superuser:
+            return SalesTask.objects.all()
+        return SalesTask.objects.filter(owner=user)
 
 # ==========================================
-#       TECH TEAM VIEWS (Restricted)
+#       TECH TEAM VIEWS (Strictly Private)
 # ==========================================
 
 # 5. Tasks (Technical)
@@ -126,9 +159,11 @@ class TaskListCreate(BaseListCreateView):
     search_fields = ['task_name', 'company_name', 'status', 'priority']
 
     def get_queryset(self):
-        # Tech: Sab dikhega. Sales: Sirf apna.
+        # Sirf Tech Team ya Admin SAB kuch dekh sakta hai
         if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
             return Task.objects.all().order_by('-date')
+        
+        # Sales wala ya Normal User sirf APNA banaya hua task dekh payega
         return Task.objects.filter(owner=self.request.user)
 
 class TaskDetail(BaseDetailView):
@@ -149,12 +184,19 @@ class TenderListCreate(BaseListCreateView):
     search_fields = ['company', 'bid_no', 'status']
 
     def get_queryset(self):
-        return Tender.objects.all().order_by('-date')
+        if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
+            return Tender.objects.all().order_by('-date')
+        return Tender.objects.filter(owner=self.request.user)
 
 class TenderDetail(BaseDetailView):
     serializer_class = TenderSerializer
     model = Tender
     permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly]
+    
+    def get_queryset(self):
+        if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
+            return Tender.objects.all()
+        return Tender.objects.filter(owner=self.request.user)
 
 # 7. Tech Data
 class TechDataListCreate(BaseListCreateView):
@@ -164,14 +206,19 @@ class TechDataListCreate(BaseListCreateView):
     search_fields = ['company', 'machine', 'serial']
 
     def get_queryset(self):
-        return TechData.objects.all().order_by('-id')
+        if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
+            return TechData.objects.all().order_by('-id')
+        return TechData.objects.filter(owner=self.request.user)
 
 class TechDataDetail(BaseDetailView):
     serializer_class = TechDataSerializer
     model = TechData
     permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly]
-
-
+    
+    def get_queryset(self):
+        if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
+            return TechData.objects.all()
+        return TechData.objects.filter(owner=self.request.user)
 # ==========================================
 #       CUSTOM LOGIC (Magic 🪄)
 # ==========================================
