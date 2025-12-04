@@ -9,7 +9,7 @@ from .permissions import IsSalesTeamOrReadOnly, IsTechTeamOrReadOnly
 from .serializers import CustomTokenObtainPairSerializer 
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.db.models import Sum, Count, Q
-from datetime import date   
+
 
 # ==========================================
 #       AUTHENTICATION
@@ -352,10 +352,10 @@ class LeadBulkDelete(APIView):
 
 
 
-    class DashboardStats(APIView):
-     permission_classes = [permissions.IsAuthenticated]
+class DashboardStats(APIView):
+ permission_classes = [permissions.IsAuthenticated]
 
-    def get(self, request):
+def get(self, request):
         user = request.user
         data = {}
         today = date.today()
@@ -370,10 +370,7 @@ class LeadBulkDelete(APIView):
         # 🟢 SALES DATA (Sales & Manager ke liye)
         if is_sales or is_manager:
             # Leads Info
-            if is_manager:
-                leads_qs = Lead.objects.all()
-            else:
-                leads_qs = Lead.objects.filter(owner=user)
+            leads_qs = Lead.objects.all() # Shared Access
             
             data['total_leads'] = leads_qs.count()
             data['new_leads'] = leads_qs.filter(status='New').count()
@@ -381,27 +378,16 @@ class LeadBulkDelete(APIView):
             data['converted_leads'] = leads_qs.filter(status='Converted').count()
             
             # Todays Follow Ups
-            if is_manager:
-                data['todays_calls'] = SalesTask.objects.filter(next_follow_up=today).count()
-            else:
-                data['todays_calls'] = SalesTask.objects.filter(owner=user, next_follow_up=today).count()
+            data['todays_calls'] = SalesTask.objects.filter(next_follow_up=today).count()
 
-            # Revenue (Only visible if Manager or Sales)
-            # Note: Sales wale ko sirf apni revenue dikhegi, Manager ko Total
-            if is_manager:
-                revenue = Payment.objects.aggregate(Sum('amount'))['amount__sum'] or 0
-            else:
-                revenue = Payment.objects.filter(owner=user).aggregate(Sum('amount'))['amount__sum'] or 0
+            # Revenue
+            revenue = Payment.objects.aggregate(Sum('amount'))['amount__sum'] or 0
             data['total_revenue'] = revenue
 
         # 🔴 TECH DATA (Tech & Manager ke liye)
         if is_tech or is_manager:
-            # Pending Tasks
-            if is_manager:
-                tasks_qs = Task.objects.all()
-            else:
-                # Tech wale ko sab dikhta hai
-                tasks_qs = Task.objects.all()
+            # Tech Tasks
+            tasks_qs = Task.objects.all()
 
             data['pending_tasks'] = tasks_qs.filter(status='Pending').count()
             data['high_priority_tasks'] = tasks_qs.filter(priority='High', status='Pending').count()
