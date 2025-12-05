@@ -138,13 +138,17 @@ const LeadManager = () => {
     // --- STATE ---
     const [leads, setLeads] = useState([]);
     const [selectedIds, setSelectedIds] = useState([]); 
-    const [editingId, setEditingId] = useState(null); // 🆕 For Edit Mode
+    const [editingId, setEditingId] = useState(null); 
 
-    // 🟢 PAGINATION & SEARCH STATES
+    // 🟢 PAGINATION, SEARCH & FILTER STATES
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    
+    // 🆕 NEW FILTERS
+    const [filterStatus, setFilterStatus] = useState('');
+    const [filterDays, setFilterDays] = useState(''); // ''=All, '0'=Today, '7'=Week, '30'=Month
     
     // --- 🔒 SECURITY CHECK ---
     const userRole = localStorage.getItem('role');
@@ -173,24 +177,45 @@ const LeadManager = () => {
         "OEM AUTHORIZATION", "L1", "TRAINING GEM"
     ];
 
-    // 🟢 DEBOUNCE & FETCH
+    // 🟢 DEBOUNCE EFFECT FOR SEARCH
     useEffect(() => {
         const timer = setTimeout(() => {
-            fetchLeads(1, searchQuery); 
+            fetchLeads(1); // Page 1 pe reset karo search change hone par
             setCurrentPage(1);
         }, 800);
         return () => clearTimeout(timer); 
     }, [searchQuery]);
 
+    // 🟢 FILTER EFFECT (Immediate fetch)
+    useEffect(() => {
+        fetchLeads(1);
+        setCurrentPage(1);
+    }, [filterStatus, filterDays]);
+
+    // 🟢 PAGINATION EFFECT
     useEffect(() => { 
-        fetchLeads(currentPage, searchQuery); 
+        fetchLeads(currentPage); 
     }, [currentPage]);
 
-    const fetchLeads = async (page = 1, query = '') => {
+    // 🟢 MAIN FETCH FUNCTION
+    const fetchLeads = async (page = 1) => {
         setIsLoading(true);
         try {
             const headers = getAuthHeaders();
-            const url = `${LEAD_API_URL}?page=${page}&search=${query}`;
+            
+            // 📅 Date Logic Calculation
+            let dateParam = '';
+            if (filterDays) {
+                const d = new Date();
+                d.setDate(d.getDate() - parseInt(filterDays));
+                dateParam = d.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+            }
+
+            // 🔗 Construct URL with Filters
+            let url = `${LEAD_API_URL}?page=${page}&search=${searchQuery}`;
+            if (filterStatus) url += `&status=${filterStatus}`;
+            if (dateParam) url += `&date_after=${dateParam}`;
+
             const response = await axios.get(url, headers);
             
             if (response.data.results) {
@@ -345,7 +370,7 @@ const LeadManager = () => {
                 const BULK_URL = `${BASE_URL_FIX}/api/leads/bulk-import/`;
                 const res = await axios.post(BULK_URL, bulkPayload, getAuthHeaders());
                 toast.success(res.data.message, { id: toastId });
-                fetchLeads(1, searchQuery);
+                fetchLeads(1);
             } catch (error) {
                 console.error("Import Failed:", error);
                 let errMsg = "Import failed!";
@@ -368,8 +393,6 @@ const LeadManager = () => {
     };
 
     // --- ✏️ EDIT & SAVE LOGIC ---
-    
-    // 1. Edit Click
     const handleEditClick = (lead) => {
         setEditingId(lead.id); 
         setNewLead({
@@ -383,13 +406,11 @@ const LeadManager = () => {
         toast("Editing Mode On ✏️", { icon: 'ℹ️', style: { background: '#333', color: '#fff' } });
     };
 
-    // 2. Cancel Edit
     const handleCancelEdit = () => {
         setEditingId(null);
         setNewLead({ date: getCurrentDateTime(), sno: '', company: '', name: '', contact: '', email: '', address: '', note: '', purpose: '', status: 'New' });
     };
 
-    // 3. Save or Update (Replaces handleSave)
     const handleSaveOrUpdate = async () => {
         if (!newLead.company) { toast.error("Company Name is Required!"); return; }
         
@@ -398,16 +419,14 @@ const LeadManager = () => {
             const headers = getAuthHeaders();
             
             if (editingId) {
-                // UPDATE
                 await axios.patch(`${LEAD_API_URL}${editingId}/`, newLead, headers);
                 toast.success("Lead Updated Successfully! 🔄");
             } else {
-                // CREATE
                 await axios.post(LEAD_API_URL, newLead, headers);
                 toast.success("Saved Successfully! ✅");
             }
 
-            fetchLeads(currentPage, searchQuery); 
+            fetchLeads(currentPage); 
             handleCancelEdit(); 
 
         } catch (error) { 
@@ -476,17 +495,11 @@ const LeadManager = () => {
         }
     };
 
-    // 🆕 UPDATED DELETE TRIGGER (With Infinity Duration)
     const handleDeleteTrigger = (id) => {
         toast.custom((t) => (
             <div style={{ 
-                background: '#1a1a1a', 
-                border: '1px solid #ff4444', 
-                padding: '15px', 
-                borderRadius: '8px', 
-                boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                color: '#fff',
-                minWidth: '300px'
+                background: '#1a1a1a', border: '1px solid #ff4444', padding: '15px', borderRadius: '8px', 
+                boxShadow: '0 4px 12px rgba(0,0,0,0.5)', color: '#fff', minWidth: '300px'
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
                     <span style={{ fontSize: '20px', marginRight: '10px' }}>🗑️</span>
@@ -496,24 +509,11 @@ const LeadManager = () => {
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                    <button 
-                        onClick={() => { 
-                            toast.dismiss(t.id);
-                            confirmDelete(id);   
-                        }} 
-                        style={{ background: '#ff4444', border: 'none', color: '#fff', padding: '6px 12px', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}
-                    >
-                        Yes, Delete
-                    </button>
-                    <button 
-                        onClick={() => toast.dismiss(t.id)} 
-                        style={{ background: '#333', border: '1px solid #555', color: '#e0e0e0', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}
-                    >
-                        Cancel
-                    </button>
+                    <button onClick={() => { toast.dismiss(t.id); confirmDelete(id); }} style={{ background: '#ff4444', border: 'none', color: '#fff', padding: '6px 12px', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>Yes, Delete</button>
+                    <button onClick={() => toast.dismiss(t.id)} style={{ background: '#333', border: '1px solid #555', color: '#e0e0e0', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>
                 </div>
             </div>
-        ), { duration: Infinity, position: 'top-center' }); // 🟢 IMPORTANT: Infinity
+        ), { duration: Infinity, position: 'top-center' });
     };
 
     const confirmDelete = async (id) => {       
@@ -568,6 +568,7 @@ const LeadManager = () => {
         td: { padding: '12px 15px', borderBottom: '1px solid #333', color: '#bbb', fontSize: '14px' },
         input: { width: '100%', background: '#111', border: '1px solid #444', color: '#fff', padding: '8px', borderRadius: '4px', outline: 'none', fontSize: '13px' },
         select: { width: '100%', background: '#111', border: '1px solid #444', color: '#fff', padding: '8px', borderRadius: '4px', outline: 'none' },
+        filterSelect: { padding: '10px', borderRadius: '5px', border: '1px solid #444', background: '#222', color: '#fff', outline: 'none', fontSize: '14px', cursor: 'pointer', width: '100%' },
         btnDelete: { background: 'transparent', border: '1px solid #ff4444', color: '#ff4444', padding: '4px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' },
         btnFollow: { background: 'transparent', border: '1px solid #00ffcc', color: '#00ffcc', padding: '4px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' },
         btnConvert: { background: 'transparent', border: '1px solid #00ffcc', color: '#00ffcc', padding: '4px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }
@@ -578,38 +579,66 @@ const LeadManager = () => {
             <div style={styles.header}>
                 <div style={styles.title}>Lead Manager</div>
                 
-                {/* SEARCH BOX */}
-                <div style={{ flex: 1, margin: '0 20px', maxWidth: '400px' }}>
-                    <input 
-                        type="text" 
-                        placeholder="Search Company, Name or Contact..." 
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        style={{
-                            width: '100%', padding: '10px', borderRadius: '5px',
-                            border: '1px solid #444', background: '#222', color: '#fff', outline: 'none', fontSize: '14px'
-                        }} 
-                    />
-                </div>
+                {/* 🔍 SEARCH & FILTERS SECTION */}
+                <div style={{ flex: 1, margin: '0 20px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    
+                    {/* Search */}
+                    <div style={{ flex: 2 }}>
+                        <input 
+                            type="text" 
+                            placeholder="Search..." 
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            style={{ width: '100%', padding: '10px', borderRadius: '5px', border: '1px solid #444', background: '#222', color: '#fff', outline: 'none', fontSize: '14px' }} 
+                        />
+                    </div>
 
-                {/* 🆕 BUTTONS (Save vs Update) */}
+                    {/* Status Filter */}
+                    <div style={{ flex: 1 }}>
+                        <select 
+                            value={filterStatus} 
+                            onChange={(e) => setFilterStatus(e.target.value)} 
+                            style={styles.filterSelect}
+                        >
+                            <option value="">All Status</option>
+                            <option value="New">New</option>
+                            <option value="Interested">Interested</option>
+                            <option value="Converted">Converted</option>
+                            <option value="Closed">Closed</option>
+                        </select>
+                    </div>
+
+                    {/* Date Filter */}
+                    <div style={{ flex: 1 }}>
+                        <select 
+                            value={filterDays} 
+                            onChange={(e) => setFilterDays(e.target.value)} 
+                            style={styles.filterSelect}
+                        >
+                            <option value="">All Time</option>
+                            <option value="0">Today</option>
+                            <option value="7">Last 7 Days</option>
+                            <option value="30">Last 30 Days</option>
+                        </select>
+                    </div>
+
+                </div>
+                {/* 🔍 END FILTERS */}
+
+                {/* BUTTONS */}
                 <div>
                     {!isReadOnly && (
                         <>
                              {selectedIds.length > 0 && (
                                 <button style={styles.btnBulkDelete} onClick={handleBulkDelete}>
-                                    Delete Selected ({selectedIds.length})
+                                    Delete ({selectedIds.length})
                                 </button>
                             )}
                             
                             {editingId ? (
                                 <>
-                                    <button style={{...styles.btnPrimary, background: 'linear-gradient(45deg, #ffbb33, #ff8800)'}} onClick={handleSaveOrUpdate}>
-                                        🔄 Update
-                                    </button>
-                                    <button style={{...styles.btnBulkDelete, background: '#555', marginLeft: '10px'}} onClick={handleCancelEdit}>
-                                        ✖ Cancel
-                                    </button>
+                                    <button style={{...styles.btnPrimary, background: 'linear-gradient(45deg, #ffbb33, #ff8800)'}} onClick={handleSaveOrUpdate}>🔄 Update</button>
+                                    <button style={{...styles.btnBulkDelete, background: '#555', marginLeft: '10px'}} onClick={handleCancelEdit}>✖ Cancel</button>
                                 </>
                             ) : (
                                 <button style={styles.btnPrimary} onClick={handleSaveOrUpdate}>+ Save</button>
@@ -704,15 +733,7 @@ const LeadManager = () => {
                                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                                             {!isReadOnly ? (
                                                 <>
-                                                    {/* 🆕 EDIT BUTTON */}
-                                                    <button 
-                                                        onClick={() => handleEditClick(l)}
-                                                        title="Edit Lead"
-                                                        style={{ background: 'transparent', border: '1px solid #ffbb33', color: '#ffbb33', padding: '4px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}
-                                                    >
-                                                        ✏️
-                                                    </button>
-
+                                                    <button onClick={() => handleEditClick(l)} title="Edit Lead" style={{ background: 'transparent', border: '1px solid #ffbb33', color: '#ffbb33', padding: '4px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>✏️</button>
                                                     <button style={styles.btnFollow} onClick={() => handleMoveToSalesTrigger(l)} title="Send to Sales">Follow Up 📞</button>
                                                     {l.status !== 'Converted' && (
                                                         <button style={styles.btnConvert} onClick={() => handleConvertTrigger(l)} title="Convert">Convert 💰</button>
