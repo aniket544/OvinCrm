@@ -2,110 +2,132 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { toast, Toaster } from "react-hot-toast";
 
-// --- 📋 UPDATED RECEIPT MODAL (Big Image & URL Fix) ---
-// --- 📋 RECEIPT MODAL COMPONENT (UPDATED) ---
-const ReceiptModal = ({ payment, onClose }) => {
-    if (!payment) return null;
+// --- 📋 RECEIPT MODAL COMPONENT (UPDATED: Button Only) ---
+const ReceiptModal = ({ payment, onClose, onViewInDashboard }) => {
+  if (!payment) return null;
 
-    // 👇 1. Backend URL Define karo
-    const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com";
+  const styles = {
+    overlay: {
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.85)",
+      backdropFilter: "blur(5px)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 10000,
+    },
+    modal: {
+      background: "#121212",
+      width: "600px",
+      borderRadius: "12px",
+      border: "1px solid #333",
+      boxShadow: "0 10px 40px rgba(0,0,0,0.8)",
+      overflow: "hidden",
+      fontFamily: "sans-serif",
+    },
+    header: {
+      display: "flex",
+      justifyContent: "space-between",
+      padding: "20px",
+      borderBottom: "1px solid #222",
+      background: "#1a1a1a",
+    },
+    title: {
+      color: "#00ffcc",
+      margin: 0,
+      fontSize: "18px",
+      fontWeight: "bold",
+      letterSpacing: "1px",
+    },
+    closeBtn: {
+      background: "none",
+      border: "none",
+      color: "#fff",
+      fontSize: "24px",
+      cursor: "pointer",
+    },
+    body: { padding: "30px", color: "#e0e0e0" },
+    row: { display: "flex", marginBottom: "15px" },
+    col: { flex: 1 },
+    label: {
+      display: "block",
+      fontSize: "12px",
+      color: "#888",
+      marginBottom: "5px",
+      textTransform: "uppercase",
+    },
+    value: { fontSize: "16px", color: "#fff", fontWeight: "500" },
+  };
 
-    // 👇 2. Image URL Fix Logic
-    let imageUrl = payment.receipt_image || payment.receipt;
-    
-    // Agar URL hai aur wo 'http' se shuru nahi hota, toh usme backend ka address jodo
-    if (imageUrl && !imageUrl.startsWith('http')) {
-        imageUrl = `${BASE_API_URL}${imageUrl}`;
-    }
-
-    const handleDownload = async () => {
-        try {
-            const response = await fetch(imageUrl);
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `Receipt_${payment.company}_${payment.so_no || 'doc'}.jpg`; 
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } catch (error) {
-            console.error("Download failed", error);
-            toast.error("Download failed");
-        }
-    };
-
-    const styles = {
-        overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000 },
-        modal: { background: '#121212', width: '600px', borderRadius: '12px', border: '1px solid #333', boxShadow: '0 10px 40px rgba(0,0,0,0.8)', overflow: 'hidden', fontFamily: 'sans-serif' },
-        header: { display: 'flex', justifyContent: 'space-between', padding: '20px', borderBottom: '1px solid #222', background: '#1a1a1a' },
-        title: { color: '#00ffcc', margin: 0, fontSize: '18px', fontWeight: 'bold', letterSpacing: '1px' },
-        closeBtn: { background: 'none', border: 'none', color: '#fff', fontSize: '24px', cursor: 'pointer' },
-        body: { padding: '30px', color: '#e0e0e0' },
-        row: { display: 'flex', marginBottom: '15px' },
-        col: { flex: 1 },
-        label: { display: 'block', fontSize: '12px', color: '#888', marginBottom: '5px', textTransform: 'uppercase' },
-        value: { fontSize: '16px', color: '#fff', fontWeight: '500' },
-        
-        imageSection: { 
-            marginTop: '25px', 
-            background: '#000', 
-            padding: '10px', 
-            borderRadius: '8px', 
-            border: '1px solid #333',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            textAlign: 'center'
-        },
-        // Image ko bada aur fit dikhane ke liye style
-        bigImage: { 
-            maxWidth: '100%', 
-            maxHeight: '400px', 
-            objectFit: 'contain', 
-            borderRadius: '4px',
-            marginBottom: '15px'
-        },
-        downloadBtn: { background: '#00ffcc', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px', width: '100%' },
-    };
-
-    return (
-        <div style={styles.overlay}>
-            <div style={styles.modal}>
-                <div style={styles.header}>
-                    <h3 style={styles.title}>ORDER DETAILS</h3>
-                    <button onClick={onClose} style={styles.closeBtn}>&times;</button>
-                </div>
-                <div style={styles.body}>
-                    <div style={styles.row}>
-                        <div style={styles.col}><span style={styles.label}>COMPANY NAME</span><div style={styles.value}>{payment.company}</div></div>
-                        <div style={styles.col}><span style={styles.label}>SALES ORDER NO.</span><div style={styles.value}>{payment.so_no || '-'}</div></div>
-                    </div>
-                    <div style={styles.row}>
-                        <div style={styles.col}><span style={styles.label}>TOTAL AMOUNT</span><div style={styles.value}>₹ {payment.amount}</div></div>
-                        <div style={styles.col}><span style={styles.label}>REMAINING</span><div style={styles.value}>₹ {payment.remaining}</div></div>
-                    </div>
-                    
-                    <div style={{marginTop: '20px'}}>
-                        <span style={{...styles.title, fontSize: '14px'}}>PAYMENT RECEIPT VIEW</span>
-                        
-                        {imageUrl ? (
-                            <div style={styles.imageSection}>
-                                <img src={imageUrl} alt="Receipt Loading..." style={styles.bigImage} />
-                                
-                                <button onClick={handleDownload} style={styles.downloadBtn}>
-                                    DOWNLOAD IMAGE ⬇️
-                                </button>
-                            </div>
-                        ) : (
-                            <div style={{padding: '20px', color: '#666'}}>No receipt uploaded</div>
-                        )}
-                    </div>
-                </div>
-            </div>
+  return (
+    <div style={styles.overlay}>
+      <div style={styles.modal}>
+        <div style={styles.header}>
+          <h3 style={styles.title}>ORDER DETAILS</h3>
+          <button onClick={onClose} style={styles.closeBtn}>
+            &times;
+          </button>
         </div>
-    );
+        <div style={styles.body}>
+          <div style={styles.row}>
+            <div style={styles.col}>
+              <span style={styles.label}>COMPANY NAME</span>
+              <div style={styles.value}>{payment.company}</div>
+            </div>
+            <div style={styles.col}>
+              <span style={styles.label}>SALES ORDER NO.</span>
+              <div style={styles.value}>{payment.so_no || "-"}</div>
+            </div>
+          </div>
+          <div style={styles.row}>
+            <div style={styles.col}>
+              <span style={styles.label}>TOTAL AMOUNT</span>
+              <div style={styles.value}>₹ {payment.amount}</div>
+            </div>
+            <div style={styles.col}>
+              <span style={styles.label}>REMAINING</span>
+              <div style={styles.value}>₹ {payment.remaining}</div>
+            </div>
+          </div>
+
+          {/* 👇 BUTTON SECTION (Image yahan nahi dikhegi) */}
+          <div
+            style={{
+              marginTop: "25px",
+              borderTop: "1px solid #333",
+              paddingTop: "20px",
+              textAlign: "center",
+            }}
+          >
+            <span style={styles.label}>PAYMENT RECEIPT AVAILABLE</span>
+            <div style={{ height: "10px" }}></div>
+
+            <button
+              onClick={() => {
+                onViewInDashboard(payment); // 👈 Ye dashboard pe image bhejega
+                onClose(); // 👈 Modal band karega
+              }}
+              style={{
+                background: "#00ffcc",
+                color: "#000",
+                border: "none",
+                padding: "12px 30px",
+                borderRadius: "6px",
+                fontWeight: "bold",
+                cursor: "pointer",
+                width: "100%",
+              }}
+            >
+              VIEW RECEIPT IN DASHBOARD 👇
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
+
 // --- 🚀 MAIN COMPONENT ---
 const PaymentStatus = () => {
   const [payments, setPayments] = useState([]);
@@ -116,6 +138,9 @@ const PaymentStatus = () => {
 
   // 👇 NEW: View Receipt Modal State
   const [viewReceiptData, setViewReceiptData] = useState(null);
+
+  // 👇 NEW: Bottom Preview State (Green Area)
+  const [bottomPreview, setBottomPreview] = useState(null);
 
   const [modalData, setModalData] = useState({
     company_name: "",
@@ -158,6 +183,13 @@ const PaymentStatus = () => {
     return { headers: { Authorization: `Bearer ${token}` } };
   };
 
+  // Helper to fix Image URL for Bottom Preview
+  const getFullImageUrl = (path) => {
+    if (!path) return null;
+    if (path.startsWith("http")) return path;
+    return `${BASE_API_URL}${path}`;
+  };
+
   useEffect(() => {
     fetchPayments();
   }, []);
@@ -182,6 +214,8 @@ const PaymentStatus = () => {
       toast.error("Failed to load payments");
     }
   };
+
+  // ... (Baaki handlers same hain, unhe touch nahi kiya) ...
 
   // === EDIT HANDLERS ===
   const handleEditStart = (p) => {
@@ -209,14 +243,12 @@ const PaymentStatus = () => {
       advance: parseFloat(currentEditData.advance) || 0,
       remaining: parseFloat(currentEditData.remaining) || 0,
     };
-
     try {
       await axios.patch(`${API_URL}${id}/`, dataToSend, getAuthHeaders());
       toast.success("Record Updated!");
       setEditingId(null);
       fetchPayments();
     } catch (error) {
-      console.error("Edit Save error:", error.response?.data);
       toast.error("Update Failed!");
     }
   };
@@ -226,19 +258,16 @@ const PaymentStatus = () => {
     setCurrentEditData({});
   };
 
-  // === RENDER CELL (EDIT MODE) ===
   const renderCell = (p, field, type = "text") => {
     const isEditing = p.id === editingId;
     const value = isEditing ? currentEditData[field] : p[field];
     const isNumeric = type === "number" || field === "remaining";
-
     const displayValue =
       isNumeric && !isEditing
         ? `₹${parseFloat(value || 0).toLocaleString("en-IN", {
             minimumFractionDigits: 2,
           })}`
         : value || "-";
-
     const displayStyle =
       field === "advance"
         ? { color: "#28a745" }
@@ -267,7 +296,6 @@ const PaymentStatus = () => {
     return <span style={displayStyle}>{displayValue}</span>;
   };
 
-  // === GO THROUGH MODAL ===
   const handleGoThroughClick = (payment) => {
     setSelectedPaymentId(payment.id);
     setModalData({
@@ -291,7 +319,6 @@ const PaymentStatus = () => {
       toast.error("Task Description is required!");
       return;
     }
-
     const taskData = {
       task_name: modalData.task_name.trim(),
       client_name: modalData.client_name || null,
@@ -300,14 +327,12 @@ const PaymentStatus = () => {
       gem_password: modalData.gem_password || null,
       priority: modalData.priority,
     };
-
     try {
       const GO_THRU_URL = `${BASE_API_URL}/api/payments/${selectedPaymentId}/go-thru/`;
       await axios.post(GO_THRU_URL, taskData, getAuthHeaders());
       toast.success("Task sent to Tech Team successfully!");
       setShowModal(false);
     } catch (error) {
-      console.error("Task creation failed:", error.response?.data);
       toast.error("Failed to send task!");
     }
   };
@@ -408,7 +433,6 @@ const PaymentStatus = () => {
 
   const handleSave = async () => {
     if (!newPay.company.trim()) return toast.error("Company Name Required!");
-
     const formData = new FormData();
     formData.append("company", newPay.company.trim());
     formData.append("so_no", newPay.so_no);
@@ -417,11 +441,9 @@ const PaymentStatus = () => {
     formData.append("remaining", parseFloat(newPay.remaining) || 0);
     formData.append("invoice", newPay.invoice);
     formData.append("remark", newPay.remark);
-
     if (receiptFile) {
       formData.append("receipt", receiptFile);
     }
-
     try {
       const res = await axios.post(API_URL, formData, {
         headers: {
@@ -429,9 +451,7 @@ const PaymentStatus = () => {
           "Content-Type": "multipart/form-data",
         },
       });
-
       setPayments((prev) => [...prev, res.data]);
-
       setNewPay({
         company: "",
         so_no: "",
@@ -444,10 +464,8 @@ const PaymentStatus = () => {
       setReceiptFile(null);
       const fileInput = document.getElementById("receipt-upload-input");
       if (fileInput) fileInput.value = "";
-
       toast.success("Payment Recorded!");
     } catch (error) {
-      console.error(error.response?.data);
       toast.error("Error saving payment!");
     }
   };
@@ -584,11 +602,7 @@ const PaymentStatus = () => {
       color: "#00ffcc",
       transition: "0.3s",
     },
-    previewContainer: {
-      position: "relative",
-      width: "40px",
-      height: "40px",
-    },
+    previewContainer: { position: "relative", width: "40px", height: "40px" },
     previewImg: {
       width: "100%",
       height: "100%",
@@ -650,13 +664,11 @@ const PaymentStatus = () => {
                 <th style={styles.th}>Remaining</th>
                 <th style={styles.th}>Invoice</th>
                 <th style={styles.th}>Remark</th>
-                {/* 👇 NEW COLUMN for Receipt */}
                 <th style={{ ...styles.th, textAlign: "center" }}>Receipt</th>
                 <th style={styles.th}>Action</th>
               </tr>
             </thead>
             <tbody>
-              {/* Security Check: Input Row Hide for Tech */}
               {!isReadOnly && (
                 <tr style={{ background: "#2a2a2a" }}>
                   <td style={styles.td}>
@@ -726,8 +738,6 @@ const PaymentStatus = () => {
                       style={styles.input}
                     />
                   </td>
-
-                  {/* 📸 ACTION COLUMN WITH UPLOAD BUTTON (NEW PAYMENT) */}
                   <td style={{ ...styles.td, textAlign: "center" }}>
                     <input
                       type="file"
@@ -736,7 +746,6 @@ const PaymentStatus = () => {
                       accept="image/*"
                       onChange={handleFileSelect}
                     />
-
                     {receiptPreview ? (
                       <div style={styles.previewContainer}>
                         <img
@@ -783,16 +792,16 @@ const PaymentStatus = () => {
                   <td style={styles.td}>{renderCell(p, "invoice")}</td>
                   <td style={styles.td}>{renderCell(p, "remark")}</td>
 
-                  {/* 👇 NEW COLUMN: VIEW RECEIPT BUTTON */}
+                  {/* 👇 VIEW RECEIPT BUTTON */}
                   <td style={{ ...styles.td, textAlign: "center" }}>
                     {p.receipt_image || p.receipt ? (
                       <button
-                        onClick={() => setViewReceiptData(p)} // <--- Ye Modal Kholega
+                        onClick={() => setViewReceiptData(p)}
                         style={{
                           background: "#222",
                           border: "1px solid #00ffcc",
                           color: "#00ffcc",
-                          borderRadius: "5px", // Thoda bada button banaya hai
+                          borderRadius: "5px",
                           width: "35px",
                           height: "35px",
                           cursor: "pointer",
@@ -803,7 +812,7 @@ const PaymentStatus = () => {
                         }}
                         title="View Receipt"
                       >
-                        📷 {/* Camera Icon ya Eye Icon */}
+                        📷
                       </button>
                     ) : (
                       <span style={{ color: "#444", fontSize: "20px" }}>-</span>
@@ -840,7 +849,6 @@ const PaymentStatus = () => {
                             >
                               Edit
                             </button>
-
                             <button
                               style={styles.deleteBtn}
                               onClick={() => handleDeleteTrigger(p.id)}
@@ -849,7 +857,6 @@ const PaymentStatus = () => {
                             </button>
                           </>
                         )}
-
                         <button
                           style={styles.goThruBtn}
                           onClick={() => handleGoThroughClick(p)}
@@ -865,7 +872,7 @@ const PaymentStatus = () => {
           </table>
         </div>
 
-        {/* --- MODAL 1: GO THROUGH (Technical) --- */}
+        {/* --- MODAL 1: GO THROUGH --- */}
         {showModal && (
           <div
             style={{
@@ -900,7 +907,7 @@ const PaymentStatus = () => {
               >
                 Technical Handover
               </h3>
-
+              {/* (Modal Content same as before) */}
               <div style={{ marginBottom: "15px" }}>
                 <label
                   style={{
@@ -916,16 +923,12 @@ const PaymentStatus = () => {
                   type="text"
                   value={modalData.company_name}
                   onChange={(e) =>
-                    setModalData({
-                      ...modalData,
-                      company_name: e.target.value,
-                    })
+                    setModalData({ ...modalData, company_name: e.target.value })
                   }
                   style={styles.input}
                   readOnly
                 />
               </div>
-
               <div style={{ marginBottom: "15px" }}>
                 <label
                   style={{
@@ -941,16 +944,12 @@ const PaymentStatus = () => {
                   rows="4"
                   value={modalData.task_name}
                   onChange={(e) =>
-                    setModalData({
-                      ...modalData,
-                      task_name: e.target.value,
-                    })
+                    setModalData({ ...modalData, task_name: e.target.value })
                   }
                   style={{ ...styles.input, resize: "none" }}
                   placeholder="What needs to be done?"
                 />
               </div>
-
               <div style={{ marginBottom: "15px" }}>
                 <label
                   style={{
@@ -974,7 +973,6 @@ const PaymentStatus = () => {
                   <option value="Low">Low</option>
                 </select>
               </div>
-
               <div style={styles.modalRow}>
                 <div style={styles.modalCol}>
                   <label
@@ -1020,7 +1018,6 @@ const PaymentStatus = () => {
                   />
                 </div>
               </div>
-
               <div style={styles.modalRow}>
                 <div style={styles.modalCol}>
                   <label
@@ -1066,7 +1063,6 @@ const PaymentStatus = () => {
                   />
                 </div>
               </div>
-
               <div
                 style={{
                   display: "flex",
@@ -1088,7 +1084,6 @@ const PaymentStatus = () => {
                 >
                   Cancel
                 </button>
-
                 <button
                   onClick={handleCreateTaskWhatsApp}
                   style={{
@@ -1104,7 +1099,6 @@ const PaymentStatus = () => {
                 >
                   Create Group
                 </button>
-
                 <button
                   onClick={handleSubmitToTask}
                   style={{
@@ -1125,11 +1119,87 @@ const PaymentStatus = () => {
           </div>
         )}
 
-        {/* --- 👇 MODAL 2: RECEIPT VIEW (New) --- */}
+        {/* 👇👇 GREEN AREA: DASHBOARD PREVIEW PANEL 👇👇 */}
+        {bottomPreview && (
+          <div
+            style={{
+              marginTop: "30px",
+              background: "#050505",
+              border: "2px solid #00ffcc",
+              borderRadius: "10px",
+              padding: "20px",
+              textAlign: "center",
+              animation: "fadeIn 0.5s",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "15px",
+              }}
+            >
+              <h3 style={{ color: "#00ffcc", margin: 0 }}>
+                RECEIPT VIEW: {bottomPreview.company}
+              </h3>
+              <button
+                onClick={() => setBottomPreview(null)}
+                style={{
+                  background: "red",
+                  color: "white",
+                  border: "none",
+                  padding: "5px 15px",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+              >
+                CLOSE ✖
+              </button>
+            </div>
+
+            {/* Image dikhana */}
+            <img
+              src={getFullImageUrl(
+                bottomPreview.receipt_image || bottomPreview.receipt
+              )}
+              alt="Receipt"
+              style={{
+                maxWidth: "100%",
+                maxHeight: "600px",
+                borderRadius: "8px",
+                border: "1px solid #333",
+              }}
+            />
+
+            <div style={{ marginTop: "15px" }}>
+              <a
+                href={getFullImageUrl(
+                  bottomPreview.receipt_image || bottomPreview.receipt
+                )}
+                download={`Receipt_${bottomPreview.company}.jpg`}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  background: "#00ffcc",
+                  color: "#000",
+                  padding: "10px 20px",
+                  textDecoration: "none",
+                  fontWeight: "bold",
+                  borderRadius: "5px",
+                }}
+              >
+                DOWNLOAD IMAGE ⬇️
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* 👇 Modal call me ye naya prop add kar dena */}
         {viewReceiptData && (
           <ReceiptModal
             payment={viewReceiptData}
             onClose={() => setViewReceiptData(null)}
+            onViewInDashboard={(p) => setBottomPreview(p)} // 👈 Ye zaroori hai
           />
         )}
       </div>
