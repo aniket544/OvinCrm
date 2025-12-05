@@ -117,14 +117,13 @@ const LeadManager = () => {
         return now.toISOString().slice(0, 16); 
     };
 
-  // 👇👇👇 UPDATED DATE FORMAT (Year Added) 👇👇👇
     const formatDateTime = (isoString) => {
         if (!isoString) return "";
         const d = new Date(isoString);
         return d.toLocaleString('en-IN', { 
             day: '2-digit', 
             month: 'short', 
-            year: 'numeric', // <--- YE ADD KIYA HAI (2025 dikhega ab)
+            year: 'numeric', 
             hour: '2-digit', 
             minute: '2-digit', 
             hour12: true 
@@ -141,10 +140,14 @@ const LeadManager = () => {
     
     // --- STATE ---
     const [leads, setLeads] = useState([]);
-    // 👇 NEW: Selection State for Bulk Delete
     const [selectedIds, setSelectedIds] = useState([]); 
+
+    // 🟢 UPDATED: Pagination State Added Here
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [isLoading, setIsLoading] = useState(false);
     
-    // --- 🔒 SECURITY CHECK (Added) ---
+    // --- 🔒 SECURITY CHECK ---
     const userRole = localStorage.getItem('role');
     const isReadOnly = userRole === 'Tech'; 
     // ---------------------------------
@@ -171,34 +174,46 @@ const LeadManager = () => {
         "OEM AUTHORIZATION", "L1", "TRAINING GEM"
     ];
 
-    useEffect(() => { fetchLeads(); }, []);
+    // 🟢 UPDATED: UseEffect depends on currentPage
+    useEffect(() => { fetchLeads(currentPage); }, [currentPage]);
 
-    const fetchLeads = async () => {
+    // 🟢 UPDATED: Fetch Function Logic
+    const fetchLeads = async (page = 1) => {
+        setIsLoading(true); // Start loading
         try {
             const headers = getAuthHeaders();
-            const response = await axios.get(LEAD_API_URL, headers);
-          setLeads(response.data.sort((a, b) => b.id - a.id));
+            // Page parameter bheja
+            const response = await axios.get(`${LEAD_API_URL}?page=${page}`, headers);
+            
+            // Handle Pagination Response ({count, results}) vs Flat Array
+            if (response.data.results) {
+                setLeads(response.data.results);
+                // Backend page size 20 maan ke total pages nikaal rahe hain
+                setTotalPages(Math.ceil(response.data.count / 20)); 
+            } else {
+                // Fallback for flat array (agar backend pagination off ho)
+                setLeads(response.data.sort((a, b) => b.id - a.id));
+            }
         } catch (error) { 
             console.error(error);
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
                 ? "Unauthorized: Please log in first." 
                 : "Failed to load leads.";
             toast.error(message);
+        } finally {
+            setIsLoading(false); // Stop loading
         }
     };
 
-    // 👇👇👇 NEW: BULK DELETE LOGIC 👇👇👇
-    
-    // 1. Handle Individual Checkbox
+    // --- BULK DELETE LOGIC ---
     const handleCheckboxChange = (id) => {
         if (selectedIds.includes(id)) {
-            setSelectedIds(selectedIds.filter(item => item !== id)); // Uncheck
+            setSelectedIds(selectedIds.filter(item => item !== id)); 
         } else {
-            setSelectedIds([...selectedIds, id]); // Check
+            setSelectedIds([...selectedIds, id]); 
         }
     };
 
-    // 2. Handle Select All
     const handleSelectAll = (e) => {
         if (e.target.checked) {
             const allIds = leads.map(l => l.id);
@@ -208,7 +223,6 @@ const LeadManager = () => {
         }
     };
 
-    // 3. Execute Bulk Delete
     const handleBulkDelete = async () => {
         if (selectedIds.length === 0) return;
         
@@ -219,9 +233,8 @@ const LeadManager = () => {
             const BULK_DELETE_URL = `${BASE_URL_FIX}/api/leads/bulk-delete/`;
             await axios.post(BULK_DELETE_URL, { ids: selectedIds }, getAuthHeaders());
             
-            // UI Update
             setLeads(leads.filter(l => !selectedIds.includes(l.id)));
-            setSelectedIds([]); // Clear selection
+            setSelectedIds([]); 
             
             toast.success("Selected leads deleted successfully!", { id: toastId });
         } catch (error) {
@@ -229,12 +242,11 @@ const LeadManager = () => {
             toast.error("Bulk delete failed.", { id: toastId });
         }
     };
-    // 👆👆👆 END BULK DELETE LOGIC 👆👆👆
 
     const handleImportClick = () => fileInputRef.current.click();
     
-    // 👇👇👇 ERROR-PROOF BULK IMPORT LOGIC 👇👇👇
-  const handleFileChange = (e) => {
+    // --- BULK IMPORT LOGIC ---
+    const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
@@ -264,7 +276,6 @@ const LeadManager = () => {
             const bulkPayload = [];
             const todayStr = new Date().toISOString();
 
-            // --- HEADER MAPPING HELPER ---
             const getVal = (row, keywords) => {
                 const key = Object.keys(row).find(k => keywords.some(kw => k.toLowerCase().includes(kw.toLowerCase())));
                 return key ? row[key] : "";
@@ -273,7 +284,6 @@ const LeadManager = () => {
             for (let i = 0; i < data.length; i++) {
                 const row = data[i];
 
-                // 1. Fetch Values using smart match
                 let rawCompany = getVal(row, ["company", "party", "client"]);
                 let rawName = getVal(row, ["contact person", "person name", "name"]);
                 let rawContact = getVal(row, ["contact no", "mobile", "phone", "cell"]);
@@ -284,13 +294,10 @@ const LeadManager = () => {
                 let rawSno = getVal(row, ["s.no", "sr.no", "serial"]);
                 let rawStatus = getVal(row, ["status"]);
 
-                // --- 2. EMPTY ROW CHECK ---
                 if (!String(rawCompany).trim() && !String(rawName).trim() && !String(rawContact).trim()) {
                     continue; 
                 }
 
-                // --- 3. STRICT CLEANING ---
-                
                 let company = String(rawCompany || "Unknown").trim().substring(0, 190);
                 if (!company || company.toLowerCase() === "unknown") company = "Unknown Company";
 
@@ -300,25 +307,16 @@ const LeadManager = () => {
                 let contact = String(rawContact || "").replace(/[^0-9]/g, '');
                 if (contact.length > 15) contact = contact.slice(-15);
 
-                // 👇👇 EMAIL FIX (Isi wajah se error aa raha tha) 👇👇
                 let email = String(rawEmail || "").trim().toLowerCase();
-                
-                // Regex: Check karega ki @ aur .com/.in hai ya nahi
                 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                
                 if (!emailRegex.test(email)) {
-                    // Agar format galat hai, toh blank kar do (Backend blank allow karta hai)
                     email = ""; 
                 }
-                // 👆👆 END EMAIL FIX 👆👆
 
                 let purpose = String(rawPurpose).trim().substring(0, 190) || "N/A";
                 let sno = String(rawSno).trim().substring(0, 40);
-                
-                // Note
                 const finalNote = rawRemark ? `${importNote}: ${rawRemark}` : importNote;
 
-                // Date
                 let finalDate = todayStr;
                 if (rawDate) {
                     try {
@@ -327,7 +325,6 @@ const LeadManager = () => {
                     } catch (e) {}
                 }
 
-                // Status Check
                 let finalStatus = statusToSet;
                 if (rawStatus) {
                     const s = String(rawStatus).toUpperCase();
@@ -337,18 +334,9 @@ const LeadManager = () => {
                     else if (s.includes("CLOS")) finalStatus = "Closed";
                 }
 
-                // Add to Truck
                 bulkPayload.push({
-                    date: finalDate,
-                    sno: sno,
-                    company: company,
-                    name: name,
-                    contact: contact,
-                    email: email, // Ab ye ya toh Valid hoga ya Empty ""
-                    address: "",
-                    note: finalNote,
-                    purpose: purpose,
-                    status: finalStatus
+                    date: finalDate, sno: sno, company: company, name: name, contact: contact,
+                    email: email, address: "", note: finalNote, purpose: purpose, status: finalStatus
                 });
             }
 
@@ -357,22 +345,17 @@ const LeadManager = () => {
                 return;
             }
 
-            // Send to Backend
             try {
                 toast.loading(`Uploading ${bulkPayload.length} leads...`, { id: toastId });
-                
                 const BULK_URL = `${BASE_URL_FIX}/api/leads/bulk-import/`;
                 const res = await axios.post(BULK_URL, bulkPayload, getAuthHeaders());
-                
                 toast.success(res.data.message, { id: toastId });
-                fetchLeads(); 
+                fetchLeads(1); // Import ke baad page 1 par jao
             } catch (error) {
                 console.error("Import Failed:", error);
                 let errMsg = "Import failed!";
-                
                 if (error.response?.data) {
                     if (Array.isArray(error.response.data)) {
-                        // Error dhundo
                         const errIndex = error.response.data.findIndex(e => Object.keys(e).length > 0);
                         if (errIndex !== -1) {
                             const errDetail = error.response.data[errIndex];
@@ -388,14 +371,14 @@ const LeadManager = () => {
         };
         reader.readAsArrayBuffer(file);
     };
-    // 👆👆👆 END BULK LOGIC 👆👆👆
 
     const handleSave = async () => {
         if (!newLead.company) { toast.error("Company Name is Required!"); return; }
         try {
             const headers = getAuthHeaders();
             const res = await axios.post(LEAD_API_URL, newLead, headers);
-            setLeads([res.data, ...leads]);
+            // 🟢 Note: Naya save hua lead seedha list me nahi dikhega agar pagination hai, toh re-fetch kar rahe hain
+            fetchLeads(1); 
             setNewLead({ date: getCurrentDateTime(), sno: '', company: '', name: '', contact: '', email: '', address: '', note: '', purpose: '', status: 'New' });
             toast.success("Saved Successfully!");
         } catch (error) { 
@@ -406,43 +389,34 @@ const LeadManager = () => {
         }
     };
 
-    // --- FOLLOW UP & PAYMENT HANDLERS ---
+    // --- ACTIONS ---
     const handleMoveToSalesTrigger = (l) => {
         setCurrentLeadForTask(l);
         setShowModal(true); 
     };
     
     const confirmMoveToSales = async (lead, date, priority, remarks) => {
-    const toastId = toast.loading("Creating Task...");
-    const headers = getAuthHeaders();
-
-    const taskPayload = {
-        lead_name: lead.name,
-        company: lead.company,
-        contact: lead.contact,
-        task_type: 'Call',
-        next_follow_up: date, // <--- Yahan 'date' use karo
-        priority: priority,
-        remarks: remarks,
-        date: getCurrentDateTime().split('T')[0],
+        const toastId = toast.loading("Creating Task...");
+        const headers = getAuthHeaders();
+        const taskPayload = {
+            lead_name: lead.name, company: lead.company, contact: lead.contact,
+            task_type: 'Call', next_follow_up: date, priority: priority, remarks: remarks,
+            date: getCurrentDateTime().split('T')[0],
+        };
+        try {
+            await axios.post(TASK_API_URL, taskPayload, headers); 
+            await axios.patch(`${LEAD_API_URL}${lead.id}/`, { status: 'Interested' }, headers); 
+            setLeads(leads.map(l => l.id === lead.id ? { ...l, status: 'Interested' } : l));
+            toast.success("Task Created and Lead Updated! 📞", { id: toastId });
+            setShowModal(false); 
+        } catch (error) { 
+            const message = error.message.includes("Unauthorized") || error.response?.status === 401
+                ? "Unauthorized: Please log in first." 
+                : "Task creation failed.";
+            toast.error(message, { id: toastId }); 
+            setShowModal(false);
+        }
     };
-
-    try {
-        await axios.post(TASK_API_URL, taskPayload, headers); 
-        await axios.patch(`${LEAD_API_URL}${lead.id}/`, { status: 'Interested' }, headers); 
-
-        setLeads(leads.map(l => l.id === lead.id ? { ...l, status: 'Interested' } : l));
-        toast.success("Task Created and Lead Updated! 📞", { id: toastId });
-        setShowModal(false); 
-    } catch (error) { 
-        // ... error handling same rahega
-        const message = error.message.includes("Unauthorized") || error.response?.status === 401
-            ? "Unauthorized: Please log in first." 
-            : "Task creation failed.";
-        toast.error(message, { id: toastId }); 
-        setShowModal(false);
-    }
-};
 
     const handleConvertTrigger = (lead) => {
         const leadToConvert = leads.find(l => l.id === lead.id); 
@@ -486,12 +460,9 @@ const LeadManager = () => {
             const headers = getAuthHeaders();
             await axios.delete(`${LEAD_API_URL}${id}/`, headers); 
             setLeads(leads.filter(l => l.id !== id)); 
-            
-            // Also remove from selectedIds if it was selected
             if (selectedIds.includes(id)) {
                 setSelectedIds(selectedIds.filter(itemId => itemId !== id));
             }
-            
             toast.success("Deleted Successfully!"); 
         } catch (error) {
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
@@ -510,15 +481,9 @@ const LeadManager = () => {
         }
 
         const dataToExport = leads.map(lead => ({
-            Date: formatDateTime(lead.date),
-            Company: lead.company,
-            Name: lead.name,
-            Contact: lead.contact,
-            Email: lead.email,
-            Address: lead.address,
-            Status: lead.status,
-            Purpose: lead.purpose,
-            Note: lead.note
+            Date: formatDateTime(lead.date), Company: lead.company, Name: lead.name,
+            Contact: lead.contact, Email: lead.email, Address: lead.address,
+            Status: lead.status, Purpose: lead.purpose, Note: lead.note
         }));
 
         const ws = XLSX.utils.json_to_sheet(dataToExport);
@@ -536,10 +501,8 @@ const LeadManager = () => {
         btnPrimary: { background: 'linear-gradient(45deg, #00ffcc, #00c3ff)', border: 'none', padding: '10px 20px', color: '#000', fontWeight: 'bold', borderRadius: '5px', cursor: 'pointer', boxShadow: '0 0 10px rgba(0, 255, 204, 0.3)', transition: '0.3s' },
         btnSuccess: { background: 'linear-gradient(45deg, #11998e, #38ef7d)', border: 'none', padding: '10px 20px', color: '#fff', fontWeight: 'bold', borderRadius: '5px', cursor: 'pointer', marginLeft: '10px' },
         btnImport: { background: 'linear-gradient(45deg, #ff9966, #ff5e62)', border: 'none', padding: '10px 20px', color: '#fff', fontWeight: 'bold', borderRadius: '5px', cursor: 'pointer', marginLeft: '10px' },
-        // NEW STYLES
         btnBulkDelete: { background: '#ff4444', border: 'none', padding: '10px 20px', color: '#fff', fontWeight: 'bold', borderRadius: '5px', cursor: 'pointer', marginRight: '10px', boxShadow: '0 0 10px rgba(255, 68, 68, 0.4)' },
         checkbox: { cursor: 'pointer', width: '16px', height: '16px', accentColor: '#00ffcc' },
-        
         tableContainer: { overflowX: 'auto', borderRadius: '10px', border: '1px solid #333' },
         table: { width: '100%', borderCollapse: 'collapse', minWidth: '1500px' }, 
         th: { background: '#252525', color: '#00ffcc', padding: '15px', textAlign: 'left', fontSize: '12px', textTransform: 'uppercase', borderBottom: '2px solid #00ffcc', whiteSpace: 'nowrap' },
@@ -556,22 +519,18 @@ const LeadManager = () => {
             <div style={styles.header}>
                 <div style={styles.title}>Lead Manager</div>
                 <div>
-                    {/* 👇 SECURITY: Tech team ko Save/Import ka option mat dikhao */}
                     {!isReadOnly && (
                         <>
-                             {/* 👇 NEW: Bulk Delete Button (Only shows if items are selected) */}
                              {selectedIds.length > 0 && (
                                 <button style={styles.btnBulkDelete} onClick={handleBulkDelete}>
                                     Delete Selected ({selectedIds.length})
                                 </button>
                             )}
-                            
                             <button style={styles.btnPrimary} onClick={handleSave}>+ Save</button>
                             <input type="file" accept=".xlsx, .xls, .csv" ref={fileInputRef} style={{display: 'none'}} onChange={handleFileChange} />
                             <button style={styles.btnImport} onClick={handleImportClick}>📥 Import</button>
                         </>
                     )}
-                    {/* 👆 End Security Check */}
                     <button style={styles.btnSuccess} onClick={handleExport}>Export</button>
                 </div>
             </div>
@@ -580,7 +539,6 @@ const LeadManager = () => {
                 <table style={styles.table}>
                     <thead>
                         <tr>
-                            {/* 👇 NEW: Select All Checkbox */}
                             {!isReadOnly && (
                                 <th style={{...styles.th, textAlign: 'center', width: '40px'}}>
                                     <input 
@@ -606,12 +564,9 @@ const LeadManager = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {/* 👇 SECURITY: Tech team ko Input Row mat dikhao */}
                         {!isReadOnly && (
                             <tr style={{ background: '#2a2a2a' }}>
-                                {/* 👇 NEW: Empty cell for Checkbox column */}
                                 <td style={styles.td}></td> 
-                                
                                 <td style={styles.td}><input type="datetime-local" name="date" value={newLead.date} onChange={handleInputChange} style={styles.input} /></td>
                                 <td style={styles.td}><input type="text" name="sno" value={newLead.sno} onChange={handleInputChange} placeholder="1" style={{...styles.input, width: '50px'}} /></td>
                                 <td style={styles.td}><input type="text" name="company" value={newLead.company} onChange={handleInputChange} placeholder="Company" style={styles.input} /></td>
@@ -634,61 +589,86 @@ const LeadManager = () => {
                                 <td style={styles.td}>✨</td>
                             </tr>
                         )}
-                        {/* 👆 End Security Check */}
 
-                        {/* DATA ROWS */}
-                        {leads.map((l, index) => (
-                            <tr key={l.id} style={{ borderBottom: '1px solid #222', background: selectedIds.includes(l.id) ? 'rgba(0, 255, 204, 0.1)' : 'transparent' }} className="hover-row">
-                                
-                                {/* 👇 NEW: Individual Checkbox */}
-                                {!isReadOnly && (
-                                    <td style={{...styles.td, textAlign: 'center'}}>
-                                        <input 
-                                            type="checkbox" 
-                                            checked={selectedIds.includes(l.id)} 
-                                            onChange={() => handleCheckboxChange(l.id)} 
-                                            style={styles.checkbox} 
-                                        />
-                                    </td>
-                                )}
-
-                                <td style={{...styles.td, fontSize: '12px', color: '#bbb'}}>{formatDateTime(l.date)}</td>
-                                <td style={styles.td}>{l.sno || index + 1}</td>
-                                <td style={{...styles.td, color: '#fff', fontWeight: 'bold'}}>{l.company}</td>
-                                <td style={styles.td}>{l.name}</td>
-                                <td style={{...styles.td, color: '#00ffcc'}}>{l.contact}</td>
-                                <td style={styles.td}>{l.email}</td>
-                                <td style={styles.td}>{l.address}</td>
-                                <td style={styles.td}>{l.note}</td>
-                                <td style={styles.td}>{l.purpose}</td>
-                                <td style={styles.td}>
-                                    <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', background: l.status==='Converted'?'#28a745':'#007bff', color:'#fff'}}>
-                                        {l.status}
-                                    </span>
-                                </td>
-                                <td style={styles.td}>
-                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                                        {/* 👇 SECURITY: Hide Actions for Tech users */}
-                                        {!isReadOnly ? (
-                                            <>
-                                                <button style={styles.btnFollow} onClick={() => handleMoveToSalesTrigger(l)} title="Send to Sales">Follow Up 📞</button>
-                                                
-                                                {l.status !== 'Converted' && (
-                                                    <button style={styles.btnConvert} onClick={() => handleConvertTrigger(l)} title="Convert">Convert 💰</button>
-                                                )}
-                                                <button style={styles.btnDelete} onClick={() => handleDeleteTrigger(l.id)}>Del</button>
-                                            </>
-                                        ) : (
-                                            <span style={{fontSize: '16px', opacity: 0.7}}>👁️ View Only</span>
-                                        )}
-                                        {/* 👆 End Security Check */}
-                                    </div>
-                                </td>
+                        {/* 🟢 UPDATED: Loading Indicator Check */}
+                        {isLoading ? (
+                            <tr>
+                                <td colSpan="12" style={{ padding: '20px', textAlign: 'center', color: '#00ffcc' }}>Loading data...</td>
                             </tr>
-                        ))}
+                        ) : (
+                            leads.map((l, index) => (
+                                <tr key={l.id} style={{ borderBottom: '1px solid #222', background: selectedIds.includes(l.id) ? 'rgba(0, 255, 204, 0.1)' : 'transparent' }} className="hover-row">
+                                    
+                                    {!isReadOnly && (
+                                        <td style={{...styles.td, textAlign: 'center'}}>
+                                            <input 
+                                                type="checkbox" 
+                                                checked={selectedIds.includes(l.id)} 
+                                                onChange={() => handleCheckboxChange(l.id)} 
+                                                style={styles.checkbox} 
+                                            />
+                                        </td>
+                                    )}
+
+                                    <td style={{...styles.td, fontSize: '12px', color: '#bbb'}}>{formatDateTime(l.date)}</td>
+                                    <td style={styles.td}>{l.sno || index + 1}</td>
+                                    <td style={{...styles.td, color: '#fff', fontWeight: 'bold'}}>{l.company}</td>
+                                    <td style={styles.td}>{l.name}</td>
+                                    <td style={{...styles.td, color: '#00ffcc'}}>{l.contact}</td>
+                                    <td style={styles.td}>{l.email}</td>
+                                    <td style={styles.td}>{l.address}</td>
+                                    <td style={styles.td}>{l.note}</td>
+                                    <td style={styles.td}>{l.purpose}</td>
+                                    <td style={styles.td}>
+                                        <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', background: l.status==='Converted'?'#28a745':'#007bff', color:'#fff'}}>
+                                            {l.status}
+                                        </span>
+                                    </td>
+                                    <td style={styles.td}>
+                                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                            {!isReadOnly ? (
+                                                <>
+                                                    <button style={styles.btnFollow} onClick={() => handleMoveToSalesTrigger(l)} title="Send to Sales">Follow Up 📞</button>
+                                                    
+                                                    {l.status !== 'Converted' && (
+                                                        <button style={styles.btnConvert} onClick={() => handleConvertTrigger(l)} title="Convert">Convert 💰</button>
+                                                    )}
+                                                    <button style={styles.btnDelete} onClick={() => handleDeleteTrigger(l.id)}>Del</button>
+                                                </>
+                                            ) : (
+                                                <span style={{fontSize: '16px', opacity: 0.7}}>👁️ View Only</span>
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
                     </tbody>
                 </table>
             </div>
+
+            {/* 🟢 UPDATED: Pagination Controls */}
+            {!isLoading && totalPages > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px', gap: '15px', color: '#fff' }}>
+                    <button 
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        style={{ padding: '8px 15px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', background: '#333', color: '#fff', border: '1px solid #555', borderRadius: '5px' }}
+                    >
+                        Previous
+                    </button>
+                    
+                    <span style={{ alignSelf: 'center' }}>Page {currentPage} of {totalPages}</span>
+                    
+                    <button 
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                        style={{ padding: '8px 15px', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', background: '#00ffcc', color: '#000', border: 'none', fontWeight: 'bold', borderRadius: '5px' }}
+                    >
+                        Next
+                    </button>
+                </div>
+            )}
             
             {showModal && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(8px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
@@ -708,7 +688,6 @@ const LeadManager = () => {
                     />
                 </div>
             )}
-            {/* Global styles */}
             <style>{`
                 .hover-row:hover { background-color: #252525 !important; }
                 input:focus, select:focus { border-color: #00ffcc !important; box-shadow: 0 0 8px rgba(0, 255, 204, 0.3); }
