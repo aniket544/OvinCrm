@@ -245,20 +245,24 @@ class TechDataDetail(BaseDetailView):
 # ==========================================
 
 # 1. Convert Lead -> Payment
+# views.py ke andar is class ko update karo
+
 class ConvertLeadToPayment(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, pk):
         try:
-            lead = Lead.objects.get(pk=pk) # Shared access
+            lead = Lead.objects.get(pk=pk)
             data = request.data
             
             if lead.status == 'Converted':
-                return Response({"message": "Already Converted!"}, status=status.HTTP_400_BAD_REQUEST)
+                # Optional: Allow updating details even if converted
+                pass 
 
             lead.status = 'Converted'
             lead.save()
 
+            # 👇👇 YE UPDATE KIYA HAI (Photo ab save hogi) 👇👇
             Payment.objects.create(
                 owner=request.user,
                 company=lead.company,
@@ -268,14 +272,20 @@ class ConvertLeadToPayment(APIView):
                 remaining=data.get('remaining', 0),
                 invoice=data.get('invoice', 'Pending'),
                 remark=data.get('remark', f"Converted from Lead: {lead.name}"),
+                
+                # 🔥 IMPORTANT: Ye line image save karegi
+                receipt=data.get('receipt') 
             )
-            return Response({"message": "Deal finalized!"}, status=status.HTTP_200_OK)
+            # 👆👆 UPDATE END 👆👆
+
+            return Response({"message": "Deal finalized & Receipt Saved!"}, status=status.HTTP_200_OK)
 
         except Lead.DoesNotExist:
             return Response({"error": "Lead not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
+             # Error print kar rahe hain taki pata chale kya fata
+             print("Error saving payment:", str(e)) 
              return Response({"error": f"Database error: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-
 
 # 2. Go Through: Payment -> Task
 class CreateTaskFromPayment(APIView):

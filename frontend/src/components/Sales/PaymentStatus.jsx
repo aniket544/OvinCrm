@@ -7,7 +7,7 @@ const ReceiptModal = ({ payment, onClose }) => {
     if (!payment) return null;
 
     // Backend se image URL (support both field names just in case)
-    const imageUrl = payment.receipt_image || payment.receipt;
+  const imageUrl = payment.receipt_image || payment.receipt;
 
     const handleDownload = async () => {
         try {
@@ -390,7 +390,7 @@ const PaymentStatus = () => {
     formData.append("remark", newPay.remark);
 
     if (receiptFile) {
-        formData.append("receipt_image", receiptFile); 
+        formData.append("receipt", receiptFile); 
     }
 
     try {
