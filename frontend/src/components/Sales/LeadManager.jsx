@@ -142,10 +142,11 @@ const LeadManager = () => {
     const [leads, setLeads] = useState([]);
     const [selectedIds, setSelectedIds] = useState([]); 
 
-    // 🟢 UPDATED: Pagination State Added Here
+    // 🟢 PAGINATION & SEARCH STATES
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
+    const [searchQuery, setSearchQuery] = useState(''); // 👇 Search state added
     
     // --- 🔒 SECURITY CHECK ---
     const userRole = localStorage.getItem('role');
@@ -174,25 +175,39 @@ const LeadManager = () => {
         "OEM AUTHORIZATION", "L1", "TRAINING GEM"
     ];
 
-    // 🟢 UPDATED: UseEffect depends on currentPage
-    useEffect(() => { fetchLeads(currentPage); }, [currentPage]);
+    // 🟢 1. DEBOUNCING EFFECT: Typing ke 800ms baad fetch karega
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            fetchLeads(1, searchQuery); // Search change hone par hamesha Page 1 se start karo
+            setCurrentPage(1);
+        }, 800);
+    
+        return () => clearTimeout(timer); // Cleanup timer
+    }, [searchQuery]);
 
-    // 🟢 UPDATED: Fetch Function Logic
-    const fetchLeads = async (page = 1) => {
-        setIsLoading(true); // Start loading
+    // 🟢 2. PAGINATION EFFECT: Page change hone par chalega (Current Search Query ke sath)
+    useEffect(() => { 
+        // Agar page 1 hai toh debounce effect handle kar lega, 
+        // lekin agar user page 2 pe click karta hai toh ye chalega
+        // Note: Hum yahan bhi searchQuery pass kar rahe hain taaki filter maintain rahe
+        fetchLeads(currentPage, searchQuery); 
+    }, [currentPage]);
+
+    // 🟢 3. FETCH FUNCTION: Updated to accept page and query
+    const fetchLeads = async (page = 1, query = '') => {
+        setIsLoading(true);
         try {
             const headers = getAuthHeaders();
-            // Page parameter bheja
-            const response = await axios.get(`${LEAD_API_URL}?page=${page}`, headers);
+            // Backend URL me search query jod diya
+            const url = `${LEAD_API_URL}?page=${page}&search=${query}`;
             
-            // Handle Pagination Response ({count, results}) vs Flat Array
+            const response = await axios.get(url, headers);
+            
             if (response.data.results) {
                 setLeads(response.data.results);
-                // Backend page size 20 maan ke total pages nikaal rahe hain
                 setTotalPages(Math.ceil(response.data.count / 20)); 
             } else {
-                // Fallback for flat array (agar backend pagination off ho)
-                setLeads(response.data.sort((a, b) => b.id - a.id));
+                setLeads(response.data);
             }
         } catch (error) { 
             console.error(error);
@@ -201,7 +216,7 @@ const LeadManager = () => {
                 : "Failed to load leads.";
             toast.error(message);
         } finally {
-            setIsLoading(false); // Stop loading
+            setIsLoading(false);
         }
     };
 
@@ -350,7 +365,7 @@ const LeadManager = () => {
                 const BULK_URL = `${BASE_URL_FIX}/api/leads/bulk-import/`;
                 const res = await axios.post(BULK_URL, bulkPayload, getAuthHeaders());
                 toast.success(res.data.message, { id: toastId });
-                fetchLeads(1); // Import ke baad page 1 par jao
+                fetchLeads(1, searchQuery); // Import ke baad refresh (with current search)
             } catch (error) {
                 console.error("Import Failed:", error);
                 let errMsg = "Import failed!";
@@ -377,8 +392,8 @@ const LeadManager = () => {
         try {
             const headers = getAuthHeaders();
             const res = await axios.post(LEAD_API_URL, newLead, headers);
-            // 🟢 Note: Naya save hua lead seedha list me nahi dikhega agar pagination hai, toh re-fetch kar rahe hain
-            fetchLeads(1); 
+            // Save ke baad refresh karo (current page aur search ke sath)
+            fetchLeads(currentPage, searchQuery); 
             setNewLead({ date: getCurrentDateTime(), sno: '', company: '', name: '', contact: '', email: '', address: '', note: '', purpose: '', status: 'New' });
             toast.success("Saved Successfully!");
         } catch (error) { 
@@ -406,7 +421,10 @@ const LeadManager = () => {
         try {
             await axios.post(TASK_API_URL, taskPayload, headers); 
             await axios.patch(`${LEAD_API_URL}${lead.id}/`, { status: 'Interested' }, headers); 
+            
+            // Optimistic update (taaki page refresh na karna pade turant)
             setLeads(leads.map(l => l.id === lead.id ? { ...l, status: 'Interested' } : l));
+            
             toast.success("Task Created and Lead Updated! 📞", { id: toastId });
             setShowModal(false); 
         } catch (error) { 
@@ -518,6 +536,28 @@ const LeadManager = () => {
         <div style={styles.container}>
             <div style={styles.header}>
                 <div style={styles.title}>Lead Manager</div>
+                
+                {/* 👇👇 SEARCH BOX ADDED HERE 👇👇 */}
+                <div style={{ flex: 1, margin: '0 20px', maxWidth: '400px' }}>
+                    <input 
+                        type="text" 
+                        placeholder="Search Company, Name or Contact..." 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        style={{
+                            width: '100%',
+                            padding: '10px',
+                            borderRadius: '5px',
+                            border: '1px solid #444',
+                            background: '#222',
+                            color: '#fff',
+                            outline: 'none',
+                            fontSize: '14px'
+                        }} 
+                    />
+                </div>
+                {/* 👆👆 END SEARCH BOX 👆👆 */}
+
                 <div>
                     {!isReadOnly && (
                         <>
@@ -590,7 +630,7 @@ const LeadManager = () => {
                             </tr>
                         )}
 
-                        {/* 🟢 UPDATED: Loading Indicator Check */}
+                        {/* Loading Indicator */}
                         {isLoading ? (
                             <tr>
                                 <td colSpan="12" style={{ padding: '20px', textAlign: 'center', color: '#00ffcc' }}>Loading data...</td>
@@ -647,7 +687,7 @@ const LeadManager = () => {
                 </table>
             </div>
 
-            {/* 🟢 UPDATED: Pagination Controls */}
+            {/* Pagination Controls */}
             {!isLoading && totalPages > 1 && (
                 <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px', gap: '15px', color: '#fff' }}>
                     <button 
