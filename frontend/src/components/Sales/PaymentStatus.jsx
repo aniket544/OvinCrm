@@ -2,146 +2,12 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { toast, Toaster } from "react-hot-toast";
 
-// --- 📋 RECEIPT MODAL COMPONENT (UPDATED: Button Only) ---
-const ReceiptModal = ({ payment, onClose, onViewInDashboard }) => {
-  if (!payment) return null;
-
-  const styles = {
-    overlay: {
-      position: "fixed",
-      inset: 0,
-      background: "rgba(0,0,0,0.85)",
-      backdropFilter: "blur(5px)",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      zIndex: 10000,
-    },
-    modal: {
-      background: "#121212",
-      width: "600px",
-      borderRadius: "12px",
-      border: "1px solid #333",
-      boxShadow: "0 10px 40px rgba(0,0,0,0.8)",
-      overflow: "hidden",
-      fontFamily: "sans-serif",
-    },
-    header: {
-      display: "flex",
-      justifyContent: "space-between",
-      padding: "20px",
-      borderBottom: "1px solid #222",
-      background: "#1a1a1a",
-    },
-    title: {
-      color: "#00ffcc",
-      margin: 0,
-      fontSize: "18px",
-      fontWeight: "bold",
-      letterSpacing: "1px",
-    },
-    closeBtn: {
-      background: "none",
-      border: "none",
-      color: "#fff",
-      fontSize: "24px",
-      cursor: "pointer",
-    },
-    body: { padding: "30px", color: "#e0e0e0" },
-    row: { display: "flex", marginBottom: "15px" },
-    col: { flex: 1 },
-    label: {
-      display: "block",
-      fontSize: "12px",
-      color: "#888",
-      marginBottom: "5px",
-      textTransform: "uppercase",
-    },
-    value: { fontSize: "16px", color: "#fff", fontWeight: "500" },
-  };
-
-  return (
-    <div style={styles.overlay}>
-      <div style={styles.modal}>
-        <div style={styles.header}>
-          <h3 style={styles.title}>ORDER DETAILS</h3>
-          <button onClick={onClose} style={styles.closeBtn}>
-            &times;
-          </button>
-        </div>
-        <div style={styles.body}>
-          <div style={styles.row}>
-            <div style={styles.col}>
-              <span style={styles.label}>COMPANY NAME</span>
-              <div style={styles.value}>{payment.company}</div>
-            </div>
-            <div style={styles.col}>
-              <span style={styles.label}>SALES ORDER NO.</span>
-              <div style={styles.value}>{payment.so_no || "-"}</div>
-            </div>
-          </div>
-          <div style={styles.row}>
-            <div style={styles.col}>
-              <span style={styles.label}>TOTAL AMOUNT</span>
-              <div style={styles.value}>₹ {payment.amount}</div>
-            </div>
-            <div style={styles.col}>
-              <span style={styles.label}>REMAINING</span>
-              <div style={styles.value}>₹ {payment.remaining}</div>
-            </div>
-          </div>
-
-          {/* 👇 BUTTON SECTION (Image yahan nahi dikhegi) */}
-          <div
-            style={{
-              marginTop: "25px",
-              borderTop: "1px solid #333",
-              paddingTop: "20px",
-              textAlign: "center",
-            }}
-          >
-            <span style={styles.label}>PAYMENT RECEIPT AVAILABLE</span>
-            <div style={{ height: "10px" }}></div>
-
-            <button
-              onClick={() => {
-                onViewInDashboard(payment); // 👈 Ye dashboard pe image bhejega
-                onClose(); // 👈 Modal band karega
-              }}
-              style={{
-                background: "#00ffcc",
-                color: "#000",
-                border: "none",
-                padding: "12px 30px",
-                borderRadius: "6px",
-                fontWeight: "bold",
-                cursor: "pointer",
-                width: "100%",
-              }}
-            >
-              VIEW RECEIPT IN DASHBOARD 👇
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// --- 🚀 MAIN COMPONENT ---
 const PaymentStatus = () => {
   const [payments, setPayments] = useState([]);
 
-  // MODAL STATES
+  // --- MODAL STATES (For Task Handover) ---
   const [showModal, setShowModal] = useState(false);
   const [selectedPaymentId, setSelectedPaymentId] = useState(null);
-
-  // 👇 NEW: View Receipt Modal State
-  const [viewReceiptData, setViewReceiptData] = useState(null);
-
-  // 👇 NEW: Bottom Preview State (Green Area)
-  const [bottomPreview, setBottomPreview] = useState(null);
-
   const [modalData, setModalData] = useState({
     company_name: "",
     task_name: "",
@@ -152,11 +18,11 @@ const PaymentStatus = () => {
     priority: "Medium",
   });
 
-  // EDITING STATES
+  // --- EDITING STATES ---
   const [editingId, setEditingId] = useState(null);
   const [currentEditData, setCurrentEditData] = useState({});
 
-  // NEW PAYMENT STATE
+  // --- NEW PAYMENT STATE ---
   const [newPay, setNewPay] = useState({
     company: "",
     so_no: "",
@@ -167,11 +33,14 @@ const PaymentStatus = () => {
     remark: "",
   });
 
-  // UPLOAD STATE
+  // --- UPLOAD STATE ---
   const [receiptFile, setReceiptFile] = useState(null);
   const [receiptPreview, setReceiptPreview] = useState(null);
 
-  // SECURITY CHECK
+  // --- 👇 NEW: BOTTOM PREVIEW STATE ---
+  const [bottomPreview, setBottomPreview] = useState(null);
+
+  // --- SECURITY CHECK ---
   const userRole = localStorage.getItem("role");
   const isReadOnly = userRole === "Tech";
 
@@ -183,18 +52,11 @@ const PaymentStatus = () => {
     return { headers: { Authorization: `Bearer ${token}` } };
   };
 
-  // Helper to fix Image URL for Bottom Preview
-  const getFullImageUrl = (path) => {
-    if (!path) return null;
-    if (path.startsWith("http")) return path;
-    return `${BASE_API_URL}${path}`;
-  };
-
   useEffect(() => {
     fetchPayments();
   }, []);
 
-  // IMAGE PREVIEW CLEANUP
+  // --- IMAGE PREVIEW CLEANUP ---
   useEffect(() => {
     if (!receiptFile) {
       setReceiptPreview(null);
@@ -205,6 +67,44 @@ const PaymentStatus = () => {
     return () => URL.revokeObjectURL(objectUrl);
   }, [receiptFile]);
 
+  // --- 👇 HELPER: GET FULL IMAGE URL ---
+  // Ye check karega ki backend se full URL aa raha hai ya relative path
+  const getFullImageUrl = (path) => {
+    if (!path) return "";
+    if (path.startsWith("http")) return path; // Agar already full link hai (Cloudinary/S3)
+    return `${BASE_API_URL}${path}`; // Agar local media file hai
+  };
+
+  // --- 👇 HELPER: FORCE DOWNLOAD FUNCTION (ADDED) ---
+  const handleForceDownload = async (imageUrl, fileName) => {
+    const toastId = toast.loading("Downloading...");
+    try {
+      // Image ko fetch karke 'Blob' (File) banayenge
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+
+      // Browser memory me temporary URL banayenge
+      const url = window.URL.createObjectURL(blob);
+
+      // Fake link click karwayenge
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName; // Ye naam se download hogi
+      document.body.appendChild(link);
+      link.click();
+
+      // Safai (Cleanup)
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.dismiss(toastId);
+      toast.success("Download Started! 📥");
+    } catch (error) {
+      console.error("Download Error:", error);
+      toast.error("Download failed. Image server par nahi hai.");
+      toast.dismiss(toastId);
+    }
+  };
+
   const fetchPayments = async () => {
     try {
       const response = await axios.get(API_URL, getAuthHeaders());
@@ -214,8 +114,6 @@ const PaymentStatus = () => {
       toast.error("Failed to load payments");
     }
   };
-
-  // ... (Baaki handlers same hain, unhe touch nahi kiya) ...
 
   // === EDIT HANDLERS ===
   const handleEditStart = (p) => {
@@ -243,12 +141,14 @@ const PaymentStatus = () => {
       advance: parseFloat(currentEditData.advance) || 0,
       remaining: parseFloat(currentEditData.remaining) || 0,
     };
+
     try {
       await axios.patch(`${API_URL}${id}/`, dataToSend, getAuthHeaders());
       toast.success("Record Updated!");
       setEditingId(null);
       fetchPayments();
     } catch (error) {
+      console.error("Edit Save error:", error.response?.data);
       toast.error("Update Failed!");
     }
   };
@@ -262,12 +162,14 @@ const PaymentStatus = () => {
     const isEditing = p.id === editingId;
     const value = isEditing ? currentEditData[field] : p[field];
     const isNumeric = type === "number" || field === "remaining";
+
     const displayValue =
       isNumeric && !isEditing
         ? `₹${parseFloat(value || 0).toLocaleString("en-IN", {
             minimumFractionDigits: 2,
           })}`
         : value || "-";
+
     const displayStyle =
       field === "advance"
         ? { color: "#28a745" }
@@ -319,6 +221,7 @@ const PaymentStatus = () => {
       toast.error("Task Description is required!");
       return;
     }
+
     const taskData = {
       task_name: modalData.task_name.trim(),
       client_name: modalData.client_name || null,
@@ -327,12 +230,14 @@ const PaymentStatus = () => {
       gem_password: modalData.gem_password || null,
       priority: modalData.priority,
     };
+
     try {
       const GO_THRU_URL = `${BASE_API_URL}/api/payments/${selectedPaymentId}/go-thru/`;
       await axios.post(GO_THRU_URL, taskData, getAuthHeaders());
       toast.success("Task sent to Tech Team successfully!");
       setShowModal(false);
     } catch (error) {
+      console.error("Task creation failed:", error.response?.data);
       toast.error("Failed to send task!");
     }
   };
@@ -433,6 +338,7 @@ const PaymentStatus = () => {
 
   const handleSave = async () => {
     if (!newPay.company.trim()) return toast.error("Company Name Required!");
+
     const formData = new FormData();
     formData.append("company", newPay.company.trim());
     formData.append("so_no", newPay.so_no);
@@ -441,9 +347,11 @@ const PaymentStatus = () => {
     formData.append("remaining", parseFloat(newPay.remaining) || 0);
     formData.append("invoice", newPay.invoice);
     formData.append("remark", newPay.remark);
+
     if (receiptFile) {
-      formData.append("receipt", receiptFile);
+      formData.append("receipt_image", receiptFile);
     }
+
     try {
       const res = await axios.post(API_URL, formData, {
         headers: {
@@ -451,7 +359,9 @@ const PaymentStatus = () => {
           "Content-Type": "multipart/form-data",
         },
       });
+
       setPayments((prev) => [...prev, res.data]);
+
       setNewPay({
         company: "",
         so_no: "",
@@ -464,8 +374,10 @@ const PaymentStatus = () => {
       setReceiptFile(null);
       const fileInput = document.getElementById("receipt-upload-input");
       if (fileInput) fileInput.value = "";
+
       toast.success("Payment Recorded!");
     } catch (error) {
+      console.error(error.response?.data);
       toast.error("Error saving payment!");
     }
   };
@@ -602,7 +514,11 @@ const PaymentStatus = () => {
       color: "#00ffcc",
       transition: "0.3s",
     },
-    previewContainer: { position: "relative", width: "40px", height: "40px" },
+    previewContainer: {
+      position: "relative",
+      width: "40px",
+      height: "40px",
+    },
     previewImg: {
       width: "100%",
       height: "100%",
@@ -669,6 +585,7 @@ const PaymentStatus = () => {
               </tr>
             </thead>
             <tbody>
+              {/* Security Check: Input Row Hide for Tech */}
               {!isReadOnly && (
                 <tr style={{ background: "#2a2a2a" }}>
                   <td style={styles.td}>
@@ -738,6 +655,8 @@ const PaymentStatus = () => {
                       style={styles.input}
                     />
                   </td>
+
+                  {/* 📸 ACTION COLUMN WITH UPLOAD BUTTON (NEW PAYMENT) */}
                   <td style={{ ...styles.td, textAlign: "center" }}>
                     <input
                       type="file"
@@ -746,6 +665,7 @@ const PaymentStatus = () => {
                       accept="image/*"
                       onChange={handleFileSelect}
                     />
+
                     {receiptPreview ? (
                       <div style={styles.previewContainer}>
                         <img
@@ -792,30 +712,30 @@ const PaymentStatus = () => {
                   <td style={styles.td}>{renderCell(p, "invoice")}</td>
                   <td style={styles.td}>{renderCell(p, "remark")}</td>
 
-                  {/* 👇 VIEW RECEIPT BUTTON */}
+                  {/* 👇 VIEW RECEIPT BUTTON (Sets Bottom Preview) */}
                   <td style={{ ...styles.td, textAlign: "center" }}>
                     {p.receipt_image || p.receipt ? (
                       <button
-                        onClick={() => setViewReceiptData(p)}
+                        onClick={() => setBottomPreview(p)}
                         style={{
-                          background: "#222",
+                          background: "transparent",
                           border: "1px solid #00ffcc",
                           color: "#00ffcc",
-                          borderRadius: "5px",
-                          width: "35px",
-                          height: "35px",
+                          borderRadius: "50%",
+                          width: "30px",
+                          height: "30px",
                           cursor: "pointer",
+                          fontSize: "14px",
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          fontSize: "18px",
                         }}
                         title="View Receipt"
                       >
-                        📷
+                        👁️
                       </button>
                     ) : (
-                      <span style={{ color: "#444", fontSize: "20px" }}>-</span>
+                      <span style={{ color: "#444", fontSize: "12px" }}>-</span>
                     )}
                   </td>
 
@@ -849,6 +769,7 @@ const PaymentStatus = () => {
                             >
                               Edit
                             </button>
+
                             <button
                               style={styles.deleteBtn}
                               onClick={() => handleDeleteTrigger(p.id)}
@@ -857,6 +778,7 @@ const PaymentStatus = () => {
                             </button>
                           </>
                         )}
+
                         <button
                           style={styles.goThruBtn}
                           onClick={() => handleGoThroughClick(p)}
@@ -872,7 +794,7 @@ const PaymentStatus = () => {
           </table>
         </div>
 
-        {/* --- MODAL 1: GO THROUGH --- */}
+        {/* --- MODAL: GO THROUGH (Technical) --- */}
         {showModal && (
           <div
             style={{
@@ -907,7 +829,7 @@ const PaymentStatus = () => {
               >
                 Technical Handover
               </h3>
-              {/* (Modal Content same as before) */}
+
               <div style={{ marginBottom: "15px" }}>
                 <label
                   style={{
@@ -923,12 +845,16 @@ const PaymentStatus = () => {
                   type="text"
                   value={modalData.company_name}
                   onChange={(e) =>
-                    setModalData({ ...modalData, company_name: e.target.value })
+                    setModalData({
+                      ...modalData,
+                      company_name: e.target.value,
+                    })
                   }
                   style={styles.input}
                   readOnly
                 />
               </div>
+
               <div style={{ marginBottom: "15px" }}>
                 <label
                   style={{
@@ -944,12 +870,16 @@ const PaymentStatus = () => {
                   rows="4"
                   value={modalData.task_name}
                   onChange={(e) =>
-                    setModalData({ ...modalData, task_name: e.target.value })
+                    setModalData({
+                      ...modalData,
+                      task_name: e.target.value,
+                    })
                   }
                   style={{ ...styles.input, resize: "none" }}
                   placeholder="What needs to be done?"
                 />
               </div>
+
               <div style={{ marginBottom: "15px" }}>
                 <label
                   style={{
@@ -973,6 +903,7 @@ const PaymentStatus = () => {
                   <option value="Low">Low</option>
                 </select>
               </div>
+
               <div style={styles.modalRow}>
                 <div style={styles.modalCol}>
                   <label
@@ -1018,6 +949,7 @@ const PaymentStatus = () => {
                   />
                 </div>
               </div>
+
               <div style={styles.modalRow}>
                 <div style={styles.modalCol}>
                   <label
@@ -1063,6 +995,7 @@ const PaymentStatus = () => {
                   />
                 </div>
               </div>
+
               <div
                 style={{
                   display: "flex",
@@ -1084,6 +1017,7 @@ const PaymentStatus = () => {
                 >
                   Cancel
                 </button>
+
                 <button
                   onClick={handleCreateTaskWhatsApp}
                   style={{
@@ -1099,6 +1033,7 @@ const PaymentStatus = () => {
                 >
                   Create Group
                 </button>
+
                 <button
                   onClick={handleSubmitToTask}
                   style={{
@@ -1119,7 +1054,7 @@ const PaymentStatus = () => {
           </div>
         )}
 
-        {/* 👇👇 GREEN AREA: DASHBOARD PREVIEW PANEL 👇👇 */}
+        {/* --- 👇 REPLACED GREEN DASHBOARD PREVIEW PANEL --- */}
         {bottomPreview && (
           <div
             style={{
@@ -1157,50 +1092,61 @@ const PaymentStatus = () => {
               </button>
             </div>
 
-            {/* Image dikhana */}
+            {/* Debugging log */}
+            {console.log(
+              "Image URL:",
+              getFullImageUrl(
+                bottomPreview.receipt_image || bottomPreview.receipt
+              )
+            )}
+
+            {/* Image Display */}
             <img
               src={getFullImageUrl(
                 bottomPreview.receipt_image || bottomPreview.receipt
               )}
-              alt="Receipt"
+              alt="Receipt Loading..."
+              onError={(e) => {
+                e.target.style.display = "none";
+                toast.error(
+                  "Image load nahi hui. Shayad server se delete ho gayi."
+                );
+              }}
               style={{
                 maxWidth: "100%",
                 maxHeight: "600px",
                 borderRadius: "8px",
                 border: "1px solid #333",
+                objectFit: "contain",
               }}
             />
 
             <div style={{ marginTop: "15px" }}>
-              <a
-                href={getFullImageUrl(
-                  bottomPreview.receipt_image || bottomPreview.receipt
-                )}
-                download={`Receipt_${bottomPreview.company}.jpg`}
-                target="_blank"
-                rel="noreferrer"
+              {/* 👇 UPDATED DOWNLOAD BUTTON */}
+              <button
+                onClick={() =>
+                  handleForceDownload(
+                    getFullImageUrl(
+                      bottomPreview.receipt_image || bottomPreview.receipt
+                    ),
+                    `Receipt_${bottomPreview.company}.jpg`
+                  )
+                }
                 style={{
                   background: "#00ffcc",
                   color: "#000",
-                  padding: "10px 20px",
-                  textDecoration: "none",
+                  padding: "12px 30px",
+                  border: "none",
                   fontWeight: "bold",
                   borderRadius: "5px",
+                  cursor: "pointer",
+                  fontSize: "14px",
                 }}
               >
                 DOWNLOAD IMAGE ⬇️
-              </a>
+              </button>
             </div>
           </div>
-        )}
-
-        {/* 👇 Modal call me ye naya prop add kar dena */}
-        {viewReceiptData && (
-          <ReceiptModal
-            payment={viewReceiptData}
-            onClose={() => setViewReceiptData(null)}
-            onViewInDashboard={(p) => setBottomPreview(p)} // 👈 Ye zaroori hai
-          />
         )}
       </div>
     </>
