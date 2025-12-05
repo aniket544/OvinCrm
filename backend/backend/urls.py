@@ -6,3 +6,4 @@ urlpatterns = [
     # Ye line zaroori hai taaki frontend '/api/leads/' call kar sake
     path('api/', include('app.urls')), 
 ]   
+

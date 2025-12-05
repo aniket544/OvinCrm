@@ -45,10 +45,13 @@ const FollowUpModal = ({ lead, onClose, onConfirm }) => {
     );
 };
 
-// --- 2. PAYMENT DETAILS MODAL COMPONENT (FOR CONVERT) ---
+// --- 2. PAYMENT DETAILS MODAL COMPONENT (UPDATED FOR IMAGE UPLOAD) ---
 const PaymentDetailsModal = ({ lead, onClose, onConfirm }) => {
     const [paymentData, setPaymentData] = useState({ so_no: '', amount: '', advance: '', remaining: '0.00', invoice: '', remark: '' });
     
+    // 🆕 NEW: File state handle karne ke liye
+    const [receiptFile, setReceiptFile] = useState(null);
+
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setPaymentData(prev => {
@@ -61,9 +64,18 @@ const PaymentDetailsModal = ({ lead, onClose, onConfirm }) => {
             return updated;
         });
     };
+
+    // 🆕 NEW: File selection handler
+    const handleFileChange = (e) => {
+        if (e.target.files && e.target.files[0]) {
+            setReceiptFile(e.target.files[0]);
+        }
+    };
+
     const handleConfirm = () => {
         if (!paymentData.amount || paymentData.amount <= 0) { toast.error("Amount must be greater than zero."); return; }
-        onConfirm(lead.id, paymentData); 
+        // 🆕 NEW: Ab hum file bhi pass kar rahe hain
+        onConfirm(lead.id, paymentData, receiptFile); 
     };
     const styles = {
         modal: { background: '#1a1a1a', padding: '30px', borderRadius: '10px', border: '2px solid #00ffcc', boxShadow: '0 0 20px rgba(0, 255, 204, 0.5)', color: '#fff', width: '450px' },
@@ -86,6 +98,18 @@ const PaymentDetailsModal = ({ lead, onClose, onConfirm }) => {
                 <div style={styles.col}><label style={styles.label}>Total Amount</label><input type="number" name="amount" value={paymentData.amount} onChange={handleInputChange} style={styles.input} placeholder="0.00" /></div>
                 <div style={styles.col}><label style={styles.label}>Advance Paid</label><input type="number" name="advance" value={paymentData.advance} onChange={handleInputChange} style={styles.input} placeholder="0.00" /></div>
             </div>
+
+            {/* 🆕 NEW: File Upload Input */}
+            <div style={{marginBottom: '10px'}}>
+                <label style={styles.label}>Upload Payment Receipt (Image)</label>
+                <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={handleFileChange} 
+                    style={{...styles.input, paddingTop: '5px'}} 
+                />
+            </div>
+
             <div style={{...styles.row, alignItems: 'center'}}><div style={styles.col}>
                 <label style={styles.label}>Remaining Amount</label>
                 <input type="text" readOnly value={`₹ ${paymentData.remaining}`} style={{...styles.input, color: '#ffbb33', fontWeight: 'bold'}} />
@@ -478,13 +502,32 @@ const LeadManager = () => {
         }
     };
     
-    const confirmPaymentRecord = async (leadId, paymentData) => {
-        const toastId = toast.loading("Processing Deal...");
+    // 🆕 NEW: UPDATED PAYMENT FUNCTION WITH FORMDATA
+    const confirmPaymentRecord = async (leadId, paymentData, receiptFile) => {
+        const toastId = toast.loading("Processing Deal & Uploading Receipt...");
         try {
             const headers = getAuthHeaders();
-            await axios.post(`${LEAD_API_URL}${leadId}/convert/`, paymentData, headers); 
+            
+            // 👇 FormData logic start
+            const formData = new FormData();
+            formData.append('so_no', paymentData.so_no);
+            formData.append('amount', paymentData.amount);
+            formData.append('advance', paymentData.advance);
+            formData.append('remaining', paymentData.remaining);
+            formData.append('invoice', paymentData.invoice);
+            formData.append('remark', paymentData.remark);
+            
+            // Check if file exists then append
+            if (receiptFile) {
+                formData.append('receipt', receiptFile);
+            }
+            // 👆 FormData logic end
+
+            // Send formData instead of JSON
+            await axios.post(`${LEAD_API_URL}${leadId}/convert/`, formData, headers); 
+            
             setLeads(leads.map(lead => lead.id === leadId ? { ...lead, status: 'Converted' } : lead));
-            toast.success("Payment Record Created! 💰", { id: toastId });
+            toast.success("Payment Recorded & Receipt Uploaded! 💰", { id: toastId });
             setShowPaymentModal(false); 
         } catch (error) { 
             console.error("Payment API Error:", error.response?.data);

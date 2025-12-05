@@ -42,6 +42,7 @@ class Payment(models.Model):
     remaining = models.DecimalField(max_digits=15, decimal_places=2, default=0)
     invoice = models.CharField(max_length=100, blank=True)
     remark = models.TextField(blank=True)
+    receipt = models.ImageField(upload_to='receipts/', null=True, blank=True)
 
 # 4. Task Manager Model (System/Admin Tasks)
 class Task(models.Model):

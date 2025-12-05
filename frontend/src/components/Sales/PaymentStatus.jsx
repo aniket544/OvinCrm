@@ -22,6 +22,7 @@ const PaymentStatus = () => {
   const [editingId, setEditingId] = useState(null);
   const [currentEditData, setCurrentEditData] = useState({});
 
+  // NEW PAYMENT STATE
   const [newPay, setNewPay] = useState({
     company: "",
     so_no: "",
@@ -32,25 +33,42 @@ const PaymentStatus = () => {
     remark: "",
   });
 
+  // --- 📸 IMAGE UPLOAD STATE (NEW) ---
+  const [receiptFile, setReceiptFile] = useState(null);
+  const [receiptPreview, setReceiptPreview] = useState(null);
+
   // --- 🔒 SECURITY CHECK ---
   const userRole = localStorage.getItem('role');
-  // Agar Tech wala hai, toh Payments Read-Only rahega
   const isReadOnly = userRole === 'Tech'; 
   // -------------------------
 
   const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com";
   const API_URL = `${BASE_API_URL}/api/payments/`; 
-  
-  // ❌ OLD URL (Block ho raha tha): const TASK_API_URL = `${BASE_API_URL}/api/tasks/`; 
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem("access_token");
+    // Note: Jab file bhejte hain, toh Content-Type aksar browser khud set kar deta hai (multipart/form-data)
+    // Lekin Authorization header zaroori hai.
     return { headers: { Authorization: `Bearer ${token}` } };
   };
 
   useEffect(() => {
     fetchPayments();
   }, []);
+
+  // --- 📸 EFFECT: IMAGE PREVIEW CLEANUP (NEW) ---
+  useEffect(() => {
+    if (!receiptFile) {
+      setReceiptPreview(null);
+      return;
+    }
+    // Browser memory mein URL create karo
+    const objectUrl = URL.createObjectURL(receiptFile);
+    setReceiptPreview(objectUrl);
+
+    // Memory leak rokne ke liye cleanup
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [receiptFile]);
 
   const fetchPayments = async () => {
     try {
@@ -146,7 +164,6 @@ const PaymentStatus = () => {
     return <span style={displayStyle}>{displayValue}</span>;
   };
 
-  // === GO THROUGH MODAL ===
   const handleGoThroughClick = (payment) => {
     setSelectedPaymentId(payment.id);
     setModalData({
@@ -161,12 +178,10 @@ const PaymentStatus = () => {
     setShowModal(true);
   };
 
-  // === WHATSAPP SIMPLE OPEN ===
   const handleCreateTaskWhatsApp = () => {
     window.open("https://web.whatsapp.com/", "_blank");
   };
 
-  // 👇👇👇 MAIN FIX HERE 👇👇👇
   const handleSubmitToTask = async () => {
     if (!modalData.task_name.trim()) {
       toast.error("Task Description is required!");
@@ -174,7 +189,6 @@ const PaymentStatus = () => {
     }
 
     const taskData = {
-      // NOTE: 'company_name' backend automatically payment record se utha lega
       task_name: modalData.task_name.trim(),
       client_name: modalData.client_name || null,
       client_id: modalData.client_id || null,
@@ -184,23 +198,16 @@ const PaymentStatus = () => {
     };
 
     try {
-      // ✅ FIX: Ab hum 'go-thru' wali special API hit kar rahe hain
-      // Ye API "Sales" walon ke liye khuli hai (IsAuthenticated)
       const GO_THRU_URL = `${BASE_API_URL}/api/payments/${selectedPaymentId}/go-thru/`;
-      
       await axios.post(GO_THRU_URL, taskData, getAuthHeaders());
-      
       toast.success("Task sent to Tech Team successfully!");
       setShowModal(false);
-      // fetchPayments(); // Refresh ki zaroorat nahi hai waise
     } catch (error) {
       console.error("Task creation failed:", error.response?.data);
       toast.error("Failed to send task! (Check Permissions)");
     }
   };
-  // 👆👆👆 END FIX 👆👆👆
 
-  // === DELETE WITH CONFIRMATION ===
   const handleDeleteTrigger = (id) => {
     toast(
       (t) => (
@@ -208,9 +215,7 @@ const PaymentStatus = () => {
           <p style={{ margin: "0 0 15px", color: "#fff", fontWeight: "bold" }}>
             Sure to delete this payment?
           </p>
-          <div
-            style={{ display: "flex", gap: "10px", justifyContent: "center" }}
-          >
+          <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
             <button
               onClick={() => {
                 confirmDelete(id);
@@ -263,7 +268,6 @@ const PaymentStatus = () => {
     toast.error("Export feature requires xlsx package.");
   };
 
-  // === NEW PAYMENT HANDLERS ===
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setNewPay((prev) => {
@@ -277,20 +281,60 @@ const PaymentStatus = () => {
     });
   };
 
+  // --- 📸 HANDLE FILE SELECTION (NEW) ---
+  const handleFileSelect = (e) => {
+    if (!e.target.files || e.target.files.length === 0) {
+      setReceiptFile(null);
+      return;
+    }
+    const file = e.target.files[0];
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file!");
+      return;
+    }
+    setReceiptFile(file);
+  };
+
+  const handleRemoveImage = () => {
+    setReceiptFile(null);
+    // Note: input value ko reset karne ke liye hum input element ko id se access kar sakte hain, 
+    // ya phir simple key change technique use kar sakte hain. 
+    // Abhi ke liye state clear kaafi hai.
+    const fileInput = document.getElementById("receipt-upload-input");
+    if(fileInput) fileInput.value = ""; 
+  };
+
+  // --- 💾 UPDATED HANDLE SAVE (SUPPORTS FILE) ---
   const handleSave = async () => {
     if (!newPay.company.trim()) return toast.error("Company Name Required!");
 
-    const dataToSend = {
-      ...newPay,
-      amount: parseFloat(newPay.amount) || 0,
-      advance: parseFloat(newPay.advance) || 0,
-      remaining: parseFloat(newPay.remaining) || 0,
-      company: newPay.company.trim(),
-    };
+    // ✅ FormData ka use karenge taki image + text data backend jaye
+    const formData = new FormData();
+    formData.append("company", newPay.company.trim());
+    formData.append("so_no", newPay.so_no);
+    formData.append("amount", parseFloat(newPay.amount) || 0);
+    formData.append("advance", parseFloat(newPay.advance) || 0);
+    formData.append("remaining", parseFloat(newPay.remaining) || 0);
+    formData.append("invoice", newPay.invoice);
+    formData.append("remark", newPay.remark);
+
+    // Agar receipt select ki hai, toh append karo
+    if (receiptFile) {
+        formData.append("receipt_image", receiptFile); 
+        // NOTE: Backend pe field ka naam 'receipt_image' ya jo bhi ho, wo match karna chahiye
+    }
 
     try {
-      const res = await axios.post(API_URL, dataToSend, getAuthHeaders());
+      const res = await axios.post(API_URL, formData, {
+        headers: {
+            ...getAuthHeaders().headers,
+            "Content-Type": "multipart/form-data", // Important for files
+        }
+      });
+
       setPayments((prev) => [...prev, res.data]);
+      
+      // Reset Form
       setNewPay({
         company: "",
         so_no: "",
@@ -300,7 +344,11 @@ const PaymentStatus = () => {
         invoice: "",
         remark: "",
       });
-      toast.success("Payment Recorded!");
+      setReceiptFile(null); // Clear file
+      const fileInput = document.getElementById("receipt-upload-input");
+      if(fileInput) fileInput.value = ""; 
+
+      toast.success("Payment Recorded with Receipt!");
     } catch (error) {
       console.error(error.response?.data);
       toast.error("Error saving payment!");
@@ -425,6 +473,49 @@ const PaymentStatus = () => {
       padding: "8px",
       borderRadius: "4px",
     },
+    // New Styles for Upload
+    uploadLabel: {
+        cursor: 'pointer',
+        fontSize: '18px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '35px',
+        height: '35px',
+        borderRadius: '50%',
+        background: '#2a2a2a',
+        border: '1px dashed #666',
+        color: '#00ffcc',
+        transition: '0.3s'
+    },
+    previewContainer: {
+        position: 'relative',
+        width: '40px',
+        height: '40px',
+    },
+    previewImg: {
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        borderRadius: '5px',
+        border: '1px solid #00ffcc'
+    },
+    removeImgBtn: {
+        position: 'absolute',
+        top: '-5px',
+        right: '-5px',
+        background: 'red',
+        color: 'white',
+        borderRadius: '50%',
+        width: '15px',
+        height: '15px',
+        fontSize: '10px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        border: 'none'
+    }
   };
 
   return (
@@ -435,7 +526,6 @@ const PaymentStatus = () => {
         <div style={styles.header}>
           <div style={styles.title}>Payment Status</div>
           <div>
-            {/* Security Check: Tech wale ko Record Payment nahi dikhna chahiye */}
             {!isReadOnly && (
                 <button style={styles.btnPrimary} onClick={handleSave}>
                 + Record Payment
@@ -538,7 +628,28 @@ const PaymentStatus = () => {
                     style={styles.input}
                   />
                 </td>
-                <td style={styles.td}></td>
+                
+                {/* 📸 ACTION COLUMN WITH UPLOAD BUTTON */}
+                <td style={{...styles.td, textAlign: 'center'}}>
+                    <input 
+                        type="file" 
+                        id="receipt-upload-input" 
+                        style={{display: 'none'}} 
+                        accept="image/*"
+                        onChange={handleFileSelect}
+                    />
+
+                    {receiptPreview ? (
+                        <div style={styles.previewContainer}>
+                            <img src={receiptPreview} alt="Preview" style={styles.previewImg} />
+                            <button onClick={handleRemoveImage} style={styles.removeImgBtn}>×</button>
+                        </div>
+                    ) : (
+                        <label htmlFor="receipt-upload-input" style={styles.uploadLabel} title="Upload Receipt">
+                            📷
+                        </label>
+                    )}
+                </td>
               </tr>
               )}
 
@@ -589,10 +700,6 @@ const PaymentStatus = () => {
                     ) : (
                       <div style={{ display: "flex", gap: "5px" }}>
                         
-                        {/* Go Through sabko dikhega (ya sirf Sales ko, tumhari marzi) */}
-                        {/* Logic: Tech wala bhi dekh le par wo task create karega to wo 'Tech' group ka member hai, allowed hai */}
-                        {/* Better: Allow Go Through for everyone, backend will handle creation logic */}
-                        
                         {!isReadOnly && (
                             <>
                                 <button
@@ -611,7 +718,6 @@ const PaymentStatus = () => {
                             </>
                         )}
 
-                        {/* Go Through button is special, usually Sales initiates it */}
                         <button
                           style={styles.goThruBtn}
                           onClick={() => handleGoThroughClick(p)}
@@ -863,7 +969,7 @@ const PaymentStatus = () => {
                     padding: "12px 15px",
                     borderRadius: "5px",
                     cursor: "pointer",
-                    flex: 1, // Equal Width
+                    flex: 1, 
                   }}
                 >
                   Create Group
@@ -879,7 +985,7 @@ const PaymentStatus = () => {
                     padding: "12px 15px",
                     borderRadius: "5px",
                     cursor: "pointer",
-                    flex: 1, // Equal Width
+                    flex: 1, 
                   }}
                 >
                   Send to Tech
