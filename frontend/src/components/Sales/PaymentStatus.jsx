@@ -3,80 +3,203 @@ import axios from "axios";
 import { toast, Toaster } from "react-hot-toast";
 
 // --- 📋 RECEIPT MODAL COMPONENT (Added outside main component) ---
+// --- 📋 UPDATED RECEIPT MODAL (Design like your screenshot) ---
 const ReceiptModal = ({ payment, onClose }) => {
-    if (!payment) return null;
+  if (!payment) return null;
 
-    // Backend se image URL (support both field names just in case)
+  // Image URL handle karne ke liye
   const imageUrl = payment.receipt_image || payment.receipt;
 
-    const handleDownload = async () => {
-        try {
-            const response = await fetch(imageUrl);
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            // File name generator
-            link.download = `Receipt_${payment.company}_${payment.so_no || 'doc'}.jpg`; 
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } catch (error) {
-            console.error("Download failed", error);
-            toast.error("Download failed");
-        }
-    };
+  // Download Function
+  const handleDownload = async () => {
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Receipt_${payment.company}_${
+        payment.so_no || "doc"
+      }.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Download failed", error);
+      toast.error("Download failed");
+    }
+  };
 
-    const styles = {
-        overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000 },
-        modal: { background: '#121212', width: '600px', borderRadius: '12px', border: '1px solid #333', boxShadow: '0 10px 40px rgba(0,0,0,0.8)', overflow: 'hidden', fontFamily: 'sans-serif' },
-        header: { display: 'flex', justifyContent: 'space-between', padding: '20px', borderBottom: '1px solid #222', background: '#1a1a1a' },
-        title: { color: '#00ffcc', margin: 0, fontSize: '18px', fontWeight: 'bold', letterSpacing: '1px' },
-        closeBtn: { background: 'none', border: 'none', color: '#fff', fontSize: '24px', cursor: 'pointer' },
-        body: { padding: '30px', color: '#e0e0e0' },
-        row: { display: 'flex', marginBottom: '15px' },
-        col: { flex: 1 },
-        label: { display: 'block', fontSize: '12px', color: '#888', marginBottom: '5px', textTransform: 'uppercase' },
-        value: { fontSize: '16px', color: '#fff', fontWeight: '500' },
-        imageSection: { marginTop: '25px', display: 'flex', gap: '20px', alignItems: 'center', background: '#1a1a1a', padding: '15px', borderRadius: '8px' },
-        thumbnail: { width: '120px', height: '80px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #444' },
-        btnContainer: { display: 'flex', flexDirection: 'column', gap: '10px' },
-        downloadBtn: { background: '#00ffcc', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px', textAlign: 'center' },
-        viewLink: { color: '#fff', fontSize: '13px', textDecoration: 'underline', cursor: 'pointer', textAlign: 'center' }
-    };
+  const styles = {
+    overlay: {
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.8)",
+      backdropFilter: "blur(4px)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 10000,
+    },
+    modal: {
+      background: "#181818",
+      width: "650px",
+      borderRadius: "12px",
+      border: "1px solid #00ffcc",
+      boxShadow: "0 0 30px rgba(0,255,204,0.2)",
+      overflow: "hidden",
+      fontFamily: "sans-serif",
+    },
+    header: {
+      display: "flex",
+      justifyContent: "space-between",
+      padding: "15px 25px",
+      borderBottom: "1px solid #333",
+      background: "#111",
+    },
+    title: {
+      color: "#00ffcc",
+      margin: 0,
+      fontSize: "16px",
+      fontWeight: "bold",
+      letterSpacing: "1px",
+    },
+    closeBtn: {
+      background: "none",
+      border: "none",
+      color: "#ff4444",
+      fontSize: "20px",
+      cursor: "pointer",
+      fontWeight: "bold",
+    },
 
-    return (
-        <div style={styles.overlay}>
-            <div style={styles.modal}>
-                <div style={styles.header}>
-                    <h3 style={styles.title}>ORDER DETAILS</h3>
-                    <button onClick={onClose} style={styles.closeBtn}>&times;</button>
-                </div>
-                <div style={styles.body}>
-                    <div style={styles.row}>
-                        <div style={styles.col}><span style={styles.label}>COMPANY NAME</span><div style={styles.value}>{payment.company}</div></div>
-                        <div style={styles.col}><span style={styles.label}>SALES ORDER NO.</span><div style={styles.value}>{payment.so_no || '-'}</div></div>
-                    </div>
-                    <div style={styles.row}>
-                        <div style={styles.col}><span style={styles.label}>TOTAL AMOUNT</span><div style={styles.value}>₹ {payment.amount}</div></div>
-                        <div style={styles.col}><span style={styles.label}>REMAINING</span><div style={styles.value}>₹ {payment.remaining}</div></div>
-                    </div>
-                    <div style={{marginTop: '20px'}}>
-                        <span style={{...styles.title, fontSize: '14px'}}>PAYMENT RECEIPT</span>
-                        {imageUrl ? (
-                            <div style={styles.imageSection}>
-                                <img src={imageUrl} alt="Receipt" style={styles.thumbnail} />
-                                <div style={styles.btnContainer}>
-                                    <button onClick={handleDownload} style={styles.downloadBtn}>DOWNLOAD</button>
-                                    <a href={imageUrl} target="_blank" rel="noopener noreferrer" style={styles.viewLink}>VIEW FULL IMAGE</a>
-                                </div>
-                            </div>
-                        ) : (<div style={{padding: '20px', color: '#666'}}>No receipt uploaded</div>)}
-                    </div>
-                </div>
-            </div>
+    body: { padding: "25px", color: "#ccc" },
+
+    // Grid Layout for details
+    grid: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: "20px",
+      marginBottom: "20px",
+    },
+    item: { display: "flex", flexDirection: "column" },
+    label: {
+      fontSize: "11px",
+      color: "#888",
+      marginBottom: "4px",
+      textTransform: "uppercase",
+    },
+    value: { fontSize: "15px", color: "#fff", fontWeight: "500" },
+
+    // Image Section
+    imageContainer: {
+      marginTop: "10px",
+      background: "#111",
+      padding: "15px",
+      borderRadius: "8px",
+      border: "1px solid #333",
+      textAlign: "center",
+    },
+    image: {
+      maxWidth: "100%",
+      maxHeight: "350px",
+      borderRadius: "5px",
+      objectFit: "contain",
+    },
+
+    // Footer Buttons
+    footer: {
+      marginTop: "20px",
+      display: "flex",
+      justifyContent: "flex-end",
+      gap: "15px",
+    },
+    btnDownload: {
+      background: "#00ffcc",
+      color: "#000",
+      border: "none",
+      padding: "10px 20px",
+      borderRadius: "5px",
+      fontWeight: "bold",
+      cursor: "pointer",
+    },
+  };
+
+  return (
+    <div style={styles.overlay} onClick={onClose}>
+      <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div style={styles.header}>
+          <h3 style={styles.title}>ORDER DETAILS</h3>
+          <button onClick={onClose} style={styles.closeBtn}>
+            ✕
+          </button>
         </div>
-    );
+
+        {/* Body */}
+        <div style={styles.body}>
+          {/* Details Grid */}
+          <div style={styles.grid}>
+            <div style={styles.item}>
+              <span style={styles.label}>COMPANY NAME</span>
+              <span style={styles.value}>{payment.company}</span>
+            </div>
+            <div style={styles.item}>
+              <span style={styles.label}>SALES ORDER NO.</span>
+              <span style={styles.value}>{payment.so_no || "-"}</span>
+            </div>
+            <div style={styles.item}>
+              <span style={styles.label}>TOTAL AMOUNT</span>
+              <span style={styles.value}>₹ {payment.amount}</span>
+            </div>
+            <div style={styles.item}>
+              <span style={styles.label}>REMAINING</span>
+              <span style={{ ...styles.value, color: "#ffbb33" }}>
+                ₹ {payment.remaining}
+              </span>
+            </div>
+            <div style={styles.item}>
+              <span style={styles.label}>INVOICE</span>
+              <span style={styles.value}>{payment.invoice || "-"}</span>
+            </div>
+            <div style={styles.item}>
+              <span style={styles.label}>REMARK</span>
+              <span style={styles.value}>{payment.remark || "-"}</span>
+            </div>
+          </div>
+
+          {/* Receipt Image Section */}
+          <div>
+            <span style={styles.title}>PAYMENT RECEIPT</span>
+            {imageUrl ? (
+              <div style={styles.imageContainer}>
+                <img src={imageUrl} alt="Receipt" style={styles.image} />
+
+                <div style={styles.footer}>
+                  <button onClick={handleDownload} style={styles.btnDownload}>
+                    DOWNLOAD IMAGE
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  padding: "20px",
+                  textAlign: "center",
+                  color: "#666",
+                  background: "#111",
+                  borderRadius: "5px",
+                  marginTop: "10px",
+                }}
+              >
+                No receipt uploaded
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 // --- 🚀 MAIN COMPONENT ---
@@ -86,7 +209,7 @@ const PaymentStatus = () => {
   // MODAL STATES
   const [showModal, setShowModal] = useState(false);
   const [selectedPaymentId, setSelectedPaymentId] = useState(null);
-  
+
   // 👇 NEW: View Receipt Modal State
   const [viewReceiptData, setViewReceiptData] = useState(null);
 
@@ -120,11 +243,11 @@ const PaymentStatus = () => {
   const [receiptPreview, setReceiptPreview] = useState(null);
 
   // SECURITY CHECK
-  const userRole = localStorage.getItem('role');
-  const isReadOnly = userRole === 'Tech'; 
+  const userRole = localStorage.getItem("role");
+  const isReadOnly = userRole === "Tech";
 
   const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com";
-  const API_URL = `${BASE_API_URL}/api/payments/`; 
+  const API_URL = `${BASE_API_URL}/api/payments/`;
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem("access_token");
@@ -292,7 +415,9 @@ const PaymentStatus = () => {
           <p style={{ margin: "0 0 15px", color: "#fff", fontWeight: "bold" }}>
             Sure to delete this payment?
           </p>
-          <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+          <div
+            style={{ display: "flex", gap: "10px", justifyContent: "center" }}
+          >
             <button
               onClick={() => {
                 confirmDelete(id);
@@ -374,7 +499,7 @@ const PaymentStatus = () => {
   const handleRemoveImage = () => {
     setReceiptFile(null);
     const fileInput = document.getElementById("receipt-upload-input");
-    if(fileInput) fileInput.value = ""; 
+    if (fileInput) fileInput.value = "";
   };
 
   const handleSave = async () => {
@@ -390,19 +515,19 @@ const PaymentStatus = () => {
     formData.append("remark", newPay.remark);
 
     if (receiptFile) {
-        formData.append("receipt", receiptFile); 
+      formData.append("receipt", receiptFile);
     }
 
     try {
       const res = await axios.post(API_URL, formData, {
         headers: {
-            ...getAuthHeaders().headers,
-            "Content-Type": "multipart/form-data",
-        }
+          ...getAuthHeaders().headers,
+          "Content-Type": "multipart/form-data",
+        },
       });
 
       setPayments((prev) => [...prev, res.data]);
-      
+
       setNewPay({
         company: "",
         so_no: "",
@@ -414,7 +539,7 @@ const PaymentStatus = () => {
       });
       setReceiptFile(null);
       const fileInput = document.getElementById("receipt-upload-input");
-      if(fileInput) fileInput.value = ""; 
+      if (fileInput) fileInput.value = "";
 
       toast.success("Payment Recorded!");
     } catch (error) {
@@ -542,47 +667,47 @@ const PaymentStatus = () => {
       borderRadius: "4px",
     },
     uploadLabel: {
-        cursor: 'pointer',
-        fontSize: '18px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '35px',
-        height: '35px',
-        borderRadius: '50%',
-        background: '#2a2a2a',
-        border: '1px dashed #666',
-        color: '#00ffcc',
-        transition: '0.3s'
+      cursor: "pointer",
+      fontSize: "18px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: "35px",
+      height: "35px",
+      borderRadius: "50%",
+      background: "#2a2a2a",
+      border: "1px dashed #666",
+      color: "#00ffcc",
+      transition: "0.3s",
     },
     previewContainer: {
-        position: 'relative',
-        width: '40px',
-        height: '40px',
+      position: "relative",
+      width: "40px",
+      height: "40px",
     },
     previewImg: {
-        width: '100%',
-        height: '100%',
-        objectFit: 'cover',
-        borderRadius: '5px',
-        border: '1px solid #00ffcc'
+      width: "100%",
+      height: "100%",
+      objectFit: "cover",
+      borderRadius: "5px",
+      border: "1px solid #00ffcc",
     },
     removeImgBtn: {
-        position: 'absolute',
-        top: '-5px',
-        right: '-5px',
-        background: 'red',
-        color: 'white',
-        borderRadius: '50%',
-        width: '15px',
-        height: '15px',
-        fontSize: '10px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'pointer',
-        border: 'none'
-    }
+      position: "absolute",
+      top: "-5px",
+      right: "-5px",
+      background: "red",
+      color: "white",
+      borderRadius: "50%",
+      width: "15px",
+      height: "15px",
+      fontSize: "10px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      cursor: "pointer",
+      border: "none",
+    },
   };
 
   return (
@@ -594,9 +719,9 @@ const PaymentStatus = () => {
           <div style={styles.title}>Payment Status</div>
           <div>
             {!isReadOnly && (
-                <button style={styles.btnPrimary} onClick={handleSave}>
+              <button style={styles.btnPrimary} onClick={handleSave}>
                 + Record Payment
-                </button>
+              </button>
             )}
             <button style={styles.btnSuccess} onClick={handleExport}>
               Export Excel
@@ -622,141 +747,162 @@ const PaymentStatus = () => {
                 <th style={styles.th}>Invoice</th>
                 <th style={styles.th}>Remark</th>
                 {/* 👇 NEW COLUMN for Receipt */}
-                <th style={{...styles.th, textAlign: 'center'}}>Receipt</th>
+                <th style={{ ...styles.th, textAlign: "center" }}>Receipt</th>
                 <th style={styles.th}>Action</th>
               </tr>
             </thead>
             <tbody>
               {/* Security Check: Input Row Hide for Tech */}
               {!isReadOnly && (
-              <tr style={{ background: "#2a2a2a" }}>
-                <td style={styles.td}>
-                  <input
-                    name="company"
-                    value={newPay.company}
-                    onChange={handleInputChange}
-                    placeholder="Company"
-                    style={styles.input}
-                  />
-                </td>
-                <td style={styles.td}>
-                  <input
-                    name="so_no"
-                    value={newPay.so_no}
-                    onChange={handleInputChange}
-                    placeholder="SO-001"
-                    style={styles.input}
-                  />
-                </td>
-                <td style={styles.td}>
-                  <input
-                    name="amount"
-                    type="number"
-                    value={newPay.amount}
-                    onChange={handleInputChange}
-                    placeholder="0"
-                    style={styles.input}
-                  />
-                </td>
-                <td style={styles.td}>
-                  <input
-                    name="advance"
-                    type="number"
-                    value={newPay.advance}
-                    onChange={handleInputChange}
-                    placeholder="0"
-                    style={styles.input}
-                  />
-                </td>
-                <td style={styles.td}>
-                  <input
-                    value={newPay.remaining || ""}
-                    readOnly
-                    style={{
-                      ...styles.input,
-                      color: "#00ffcc",
-                      fontWeight: "bold",
-                    }}
-                  />
-                </td>
-                <td style={styles.td}>
-                  <input
-                    name="invoice"
-                    value={newPay.invoice}
-                    onChange={handleInputChange}
-                    placeholder="INV-001"
-                    style={styles.input}
-                  />
-                </td>
-                <td style={styles.td}>
-                  <input
-                    name="remark"
-                    value={newPay.remark}
-                    onChange={handleInputChange}
-                    placeholder="Note"
-                    style={styles.input}
-                  />
-                </td>
-                
-                {/* 📸 ACTION COLUMN WITH UPLOAD BUTTON (NEW PAYMENT) */}
-                <td style={{...styles.td, textAlign: 'center'}}>
-                    <input 
-                        type="file" 
-                        id="receipt-upload-input" 
-                        style={{display: 'none'}} 
-                        accept="image/*"
-                        onChange={handleFileSelect}
+                <tr style={{ background: "#2a2a2a" }}>
+                  <td style={styles.td}>
+                    <input
+                      name="company"
+                      value={newPay.company}
+                      onChange={handleInputChange}
+                      placeholder="Company"
+                      style={styles.input}
+                    />
+                  </td>
+                  <td style={styles.td}>
+                    <input
+                      name="so_no"
+                      value={newPay.so_no}
+                      onChange={handleInputChange}
+                      placeholder="SO-001"
+                      style={styles.input}
+                    />
+                  </td>
+                  <td style={styles.td}>
+                    <input
+                      name="amount"
+                      type="number"
+                      value={newPay.amount}
+                      onChange={handleInputChange}
+                      placeholder="0"
+                      style={styles.input}
+                    />
+                  </td>
+                  <td style={styles.td}>
+                    <input
+                      name="advance"
+                      type="number"
+                      value={newPay.advance}
+                      onChange={handleInputChange}
+                      placeholder="0"
+                      style={styles.input}
+                    />
+                  </td>
+                  <td style={styles.td}>
+                    <input
+                      value={newPay.remaining || ""}
+                      readOnly
+                      style={{
+                        ...styles.input,
+                        color: "#00ffcc",
+                        fontWeight: "bold",
+                      }}
+                    />
+                  </td>
+                  <td style={styles.td}>
+                    <input
+                      name="invoice"
+                      value={newPay.invoice}
+                      onChange={handleInputChange}
+                      placeholder="INV-001"
+                      style={styles.input}
+                    />
+                  </td>
+                  <td style={styles.td}>
+                    <input
+                      name="remark"
+                      value={newPay.remark}
+                      onChange={handleInputChange}
+                      placeholder="Note"
+                      style={styles.input}
+                    />
+                  </td>
+
+                  {/* 📸 ACTION COLUMN WITH UPLOAD BUTTON (NEW PAYMENT) */}
+                  <td style={{ ...styles.td, textAlign: "center" }}>
+                    <input
+                      type="file"
+                      id="receipt-upload-input"
+                      style={{ display: "none" }}
+                      accept="image/*"
+                      onChange={handleFileSelect}
                     />
 
                     {receiptPreview ? (
-                        <div style={styles.previewContainer}>
-                            <img src={receiptPreview} alt="Preview" style={styles.previewImg} />
-                            <button onClick={handleRemoveImage} style={styles.removeImgBtn}>×</button>
-                        </div>
+                      <div style={styles.previewContainer}>
+                        <img
+                          src={receiptPreview}
+                          alt="Preview"
+                          style={styles.previewImg}
+                        />
+                        <button
+                          onClick={handleRemoveImage}
+                          style={styles.removeImgBtn}
+                        >
+                          ×
+                        </button>
+                      </div>
                     ) : (
-                        <label htmlFor="receipt-upload-input" style={styles.uploadLabel} title="Upload Receipt">
-                            📷
-                        </label>
+                      <label
+                        htmlFor="receipt-upload-input"
+                        style={styles.uploadLabel}
+                        title="Upload Receipt"
+                      >
+                        📷
+                      </label>
                     )}
-                </td>
-                <td style={styles.td}></td>
-              </tr>
+                  </td>
+                  <td style={styles.td}></td>
+                </tr>
               )}
 
               {payments.map((p) => (
                 <tr key={p.id}>
-                  <td style={{...styles.td, color: "#fff", fontWeight: "bold"}}>{renderCell(p, "company")}</td>
+                  <td
+                    style={{ ...styles.td, color: "#fff", fontWeight: "bold" }}
+                  >
+                    {renderCell(p, "company")}
+                  </td>
                   <td style={styles.td}>{renderCell(p, "so_no")}</td>
                   <td style={styles.td}>{renderCell(p, "amount", "number")}</td>
-                  <td style={styles.td}>{renderCell(p, "advance", "number")}</td>
-                  <td style={styles.td}>{renderCell(p, "remaining", "number")}</td>
+                  <td style={styles.td}>
+                    {renderCell(p, "advance", "number")}
+                  </td>
+                  <td style={styles.td}>
+                    {renderCell(p, "remaining", "number")}
+                  </td>
                   <td style={styles.td}>{renderCell(p, "invoice")}</td>
                   <td style={styles.td}>{renderCell(p, "remark")}</td>
 
                   {/* 👇 NEW COLUMN: VIEW RECEIPT BUTTON */}
-                  <td style={{ ...styles.td, textAlign: 'center' }}>
-                    {(p.receipt_image || p.receipt) ? (
-                        <button 
-                            onClick={() => setViewReceiptData(p)}
-                            style={{
-                                background: 'transparent',
-                                border: '1px solid #00ffcc',
-                                color: '#00ffcc',
-                                borderRadius: '50%',
-                                width: '30px',
-                                height: '30px',
-                                cursor: 'pointer',
-                                fontSize: '14px',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                            }}
-                            title="View Receipt"
-                        >
-                            👁️
-                        </button>
+                  <td style={{ ...styles.td, textAlign: "center" }}>
+                    {p.receipt_image || p.receipt ? (
+                      <button
+                        onClick={() => setViewReceiptData(p)} // <--- Ye Modal Kholega
+                        style={{
+                          background: "#222",
+                          border: "1px solid #00ffcc",
+                          color: "#00ffcc",
+                          borderRadius: "5px", // Thoda bada button banaya hai
+                          width: "35px",
+                          height: "35px",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "18px",
+                        }}
+                        title="View Receipt"
+                      >
+                        📷 {/* Camera Icon ya Eye Icon */}
+                      </button>
                     ) : (
-                        <span style={{color: '#444', fontSize: '12px'}}>-</span>
+                      <span style={{ color: "#444", fontSize: "20px" }}>-</span>
                     )}
                   </td>
 
@@ -782,23 +928,22 @@ const PaymentStatus = () => {
                       </div>
                     ) : (
                       <div style={{ display: "flex", gap: "5px" }}>
-                        
                         {!isReadOnly && (
-                            <>
-                                <button
-                                style={styles.editBtn}
-                                onClick={() => handleEditStart(p)}
-                                >
-                                Edit
-                                </button>
-                                
-                                <button
-                                style={styles.deleteBtn}
-                                onClick={() => handleDeleteTrigger(p.id)}
-                                >
-                                Delete
-                                </button>
-                            </>
+                          <>
+                            <button
+                              style={styles.editBtn}
+                              onClick={() => handleEditStart(p)}
+                            >
+                              Edit
+                            </button>
+
+                            <button
+                              style={styles.deleteBtn}
+                              onClick={() => handleDeleteTrigger(p.id)}
+                            >
+                              Delete
+                            </button>
+                          </>
                         )}
 
                         <button
@@ -807,7 +952,6 @@ const PaymentStatus = () => {
                         >
                           Go Through
                         </button>
-                        
                       </div>
                     )}
                   </td>
@@ -887,8 +1031,7 @@ const PaymentStatus = () => {
                     marginBottom: "5px",
                   }}
                 >
-                  Task Description{" "}
-                  <span style={{ color: "#ff4444" }}>*</span>
+                  Task Description <span style={{ color: "#ff4444" }}>*</span>
                 </label>
                 <textarea
                   rows="4"
@@ -1052,7 +1195,7 @@ const PaymentStatus = () => {
                     padding: "12px 15px",
                     borderRadius: "5px",
                     cursor: "pointer",
-                    flex: 1, 
+                    flex: 1,
                   }}
                 >
                   Create Group
@@ -1068,7 +1211,7 @@ const PaymentStatus = () => {
                     padding: "12px 15px",
                     borderRadius: "5px",
                     cursor: "pointer",
-                    flex: 1, 
+                    flex: 1,
                   }}
                 >
                   Send to Tech
@@ -1080,12 +1223,11 @@ const PaymentStatus = () => {
 
         {/* --- 👇 MODAL 2: RECEIPT VIEW (New) --- */}
         {viewReceiptData && (
-            <ReceiptModal 
-                payment={viewReceiptData} 
-                onClose={() => setViewReceiptData(null)} 
-            />
+          <ReceiptModal
+            payment={viewReceiptData}
+            onClose={() => setViewReceiptData(null)}
+          />
         )}
-
       </div>
     </>
   );
