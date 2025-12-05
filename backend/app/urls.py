@@ -3,8 +3,8 @@ from .views import *
 from rest_framework_simplejwt.views import TokenRefreshView
 from django.conf import settings
 from django.conf.urls.static import static
-        
-
+from django.urls import re_path
+from django.views.static import serve
 urlpatterns = [
     # --- Authentication (Login/Token) ---
     path('token/', CustomLoginView.as_view(), name='token_obtain_pair'),
@@ -56,6 +56,12 @@ urlpatterns = [
     
     # 3. Lead -> Sales Task (Follow Up)
     path('leads/<int:pk>/to-sales-task/', MoveLeadToSalesTask.as_view(), name='lead-to-sales'),
+
+
+
+
+
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
 ]
 
 if settings.DEBUG:
