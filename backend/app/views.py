@@ -52,33 +52,43 @@ class BaseDetailView(generics.RetrieveUpdateDestroyAPIView):
 #       SALES TEAM VIEWS (Secured Shared Access)
 # ==========================================
 
-# 1. Leads
+# 1. Leads (🟢 UPDATED FOR FILTERING)
 class LeadListCreate(BaseListCreateView):
     serializer_class = LeadSerializer
     model = Lead
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
     search_fields = ['name', 'company', 'status', 'contact']
-    
-    # 👇👇👇 PAGINATION ADDED HERE 👇👇👇
     pagination_class = StandardResultsSetPagination 
 
-    # 👇👇👇 NEW SECURE LOGIC 👇👇👇
     def get_queryset(self):
         user = self.request.user
         
-        # Agar User 'Sales' ya 'Tech' Group ka hai, tabhi SABKO SABKA data dikhega
+        # --- 1. Permission Logic (Kaun kya dekh sakta hai) ---
         if user.groups.filter(name__in=['Sales', 'Tech']).exists() or user.is_superuser:
-            return Lead.objects.all().order_by('-id') # Changed to -id for consistent sorting
-        
-        # Agar koi Normal User hai (Bina Group wala), toh usse SALES ka data NAHI dikhega
-        return Lead.objects.filter(owner=user).order_by('-id')
+            queryset = Lead.objects.all().order_by('-id')
+        else:
+            queryset = Lead.objects.filter(owner=user).order_by('-id')
+
+        # --- 2. Filter Logic (React se aayi hui request) ---
+        status_param = self.request.query_params.get('status', None)
+        date_after = self.request.query_params.get('date_after', None)
+
+        # Agar Status filter bheja hai (e.g., ?status=New)
+        if status_param and status_param != '':
+            queryset = queryset.filter(status=status_param)
+
+        # Agar Date filter bheja hai (e.g., ?date_after=2023-10-01)
+        if date_after and date_after != '':
+            # Django magic: date__date__gte ka matlab >= date
+            queryset = queryset.filter(date__date__gte=date_after)
+
+        return queryset
 
 class LeadDetail(BaseDetailView):
     serializer_class = LeadSerializer
     model = Lead
     permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
     
-    # Detail view me bhi same logic (Security ke liye)
     def get_queryset(self):
         user = self.request.user
         if user.groups.filter(name__in=['Sales', 'Tech']).exists() or user.is_superuser:
@@ -172,11 +182,8 @@ class TaskListCreate(BaseListCreateView):
     search_fields = ['task_name', 'company_name', 'status', 'priority']
 
     def get_queryset(self):
-        # Sirf Tech Team ya Admin SAB kuch dekh sakta hai
         if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
             return Task.objects.all().order_by('-date')
-        
-        # Sales wala ya Normal User sirf APNA banaya hua task dekh payega
         return Task.objects.filter(owner=self.request.user)
 
 class TaskDetail(BaseDetailView):
@@ -232,6 +239,7 @@ class TechDataDetail(BaseDetailView):
         if self.request.user.groups.filter(name='Tech').exists() or self.request.user.is_superuser:
             return TechData.objects.all()
         return TechData.objects.filter(owner=self.request.user)
+
 # ==========================================
 #       CUSTOM LOGIC (Magic 🪄)
 # ==========================================
@@ -363,7 +371,6 @@ class LeadBulkDelete(APIView):
 class DashboardStats(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    # 👇 Ye 'def get' hona zaroori hai. Agar ye nahi hoga toh 405 Error aayega.
     def get(self, request):
         user = request.user
         data = {}
@@ -382,7 +389,7 @@ class DashboardStats(APIView):
             if is_manager:
                 leads_qs = Lead.objects.all()
             else:
-                leads_qs = Lead.objects.all() # Shared Access Logic (Pehle filter(owner=user) tha)
+                leads_qs = Lead.objects.all() # Shared Access Logic
             
             data['total_leads'] = leads_qs.count()
             data['new_leads'] = leads_qs.filter(status='New').count()
@@ -393,7 +400,7 @@ class DashboardStats(APIView):
             if is_manager:
                 data['todays_calls'] = SalesTask.objects.filter(next_follow_up=today).count()
             else:
-                data['todays_calls'] = SalesTask.objects.filter(next_follow_up=today).count() # Shared Access hai toh sab dekh sakte hain
+                data['todays_calls'] = SalesTask.objects.filter(next_follow_up=today).count()
 
             # Revenue
             revenue = Payment.objects.aggregate(Sum('amount'))['amount__sum'] or 0
