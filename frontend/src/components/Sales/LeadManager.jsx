@@ -3,7 +3,6 @@ import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 
-
 // --- 1. FOLLOW UP MODAL COMPONENT (Helper) ---
 const FollowUpModal = ({ lead, onClose, onConfirm }) => {
     const today = new Date().toISOString().split('T')[0];
@@ -45,7 +44,6 @@ const FollowUpModal = ({ lead, onClose, onConfirm }) => {
         </div>
     );
 };
-
 
 // --- 2. PAYMENT DETAILS MODAL COMPONENT (FOR CONVERT) ---
 const PaymentDetailsModal = ({ lead, onClose, onConfirm }) => {
@@ -103,8 +101,7 @@ const PaymentDetailsModal = ({ lead, onClose, onConfirm }) => {
         </div>
     );
 };
-// --- END PAYMENT MODAL COMPONENT ---
-
+// --- END MODAL COMPONENTS ---
 
 const LeadManager = () => {
     
@@ -141,12 +138,13 @@ const LeadManager = () => {
     // --- STATE ---
     const [leads, setLeads] = useState([]);
     const [selectedIds, setSelectedIds] = useState([]); 
+    const [editingId, setEditingId] = useState(null); // 🆕 For Edit Mode
 
     // 🟢 PAGINATION & SEARCH STATES
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
-    const [searchQuery, setSearchQuery] = useState(''); // 👇 Search state added
+    const [searchQuery, setSearchQuery] = useState('');
     
     // --- 🔒 SECURITY CHECK ---
     const userRole = localStorage.getItem('role');
@@ -175,32 +173,24 @@ const LeadManager = () => {
         "OEM AUTHORIZATION", "L1", "TRAINING GEM"
     ];
 
-    // 🟢 1. DEBOUNCING EFFECT: Typing ke 800ms baad fetch karega
+    // 🟢 DEBOUNCE & FETCH
     useEffect(() => {
         const timer = setTimeout(() => {
-            fetchLeads(1, searchQuery); // Search change hone par hamesha Page 1 se start karo
+            fetchLeads(1, searchQuery); 
             setCurrentPage(1);
         }, 800);
-    
-        return () => clearTimeout(timer); // Cleanup timer
+        return () => clearTimeout(timer); 
     }, [searchQuery]);
 
-    // 🟢 2. PAGINATION EFFECT: Page change hone par chalega (Current Search Query ke sath)
     useEffect(() => { 
-        // Agar page 1 hai toh debounce effect handle kar lega, 
-        // lekin agar user page 2 pe click karta hai toh ye chalega
-        // Note: Hum yahan bhi searchQuery pass kar rahe hain taaki filter maintain rahe
         fetchLeads(currentPage, searchQuery); 
     }, [currentPage]);
 
-    // 🟢 3. FETCH FUNCTION: Updated to accept page and query
     const fetchLeads = async (page = 1, query = '') => {
         setIsLoading(true);
         try {
             const headers = getAuthHeaders();
-            // Backend URL me search query jod diya
             const url = `${LEAD_API_URL}?page=${page}&search=${query}`;
-            
             const response = await axios.get(url, headers);
             
             if (response.data.results) {
@@ -240,17 +230,14 @@ const LeadManager = () => {
 
     const handleBulkDelete = async () => {
         if (selectedIds.length === 0) return;
-        
         if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} leads? This cannot be undone.`)) return;
 
         const toastId = toast.loading("Deleting selected leads...");
         try {
             const BULK_DELETE_URL = `${BASE_URL_FIX}/api/leads/bulk-delete/`;
             await axios.post(BULK_DELETE_URL, { ids: selectedIds }, getAuthHeaders());
-            
             setLeads(leads.filter(l => !selectedIds.includes(l.id)));
             setSelectedIds([]); 
-            
             toast.success("Selected leads deleted successfully!", { id: toastId });
         } catch (error) {
             console.error(error);
@@ -258,9 +245,8 @@ const LeadManager = () => {
         }
     };
 
+    // --- IMPORT LOGIC ---
     const handleImportClick = () => fileInputRef.current.click();
-    
-    // --- BULK IMPORT LOGIC ---
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -285,7 +271,6 @@ const LeadManager = () => {
             const data = XLSX.utils.sheet_to_json(ws, { raw: false, defval: "" });
 
             if (data.length === 0) { toast.error("File is empty."); return; }
-
             const toastId = toast.loading(`Cleaning & Processing ${data.length} leads...`);
             
             const bulkPayload = [];
@@ -298,7 +283,6 @@ const LeadManager = () => {
 
             for (let i = 0; i < data.length; i++) {
                 const row = data[i];
-
                 let rawCompany = getVal(row, ["company", "party", "client"]);
                 let rawName = getVal(row, ["contact person", "person name", "name"]);
                 let rawContact = getVal(row, ["contact no", "mobile", "phone", "cell"]);
@@ -309,9 +293,7 @@ const LeadManager = () => {
                 let rawSno = getVal(row, ["s.no", "sr.no", "serial"]);
                 let rawStatus = getVal(row, ["status"]);
 
-                if (!String(rawCompany).trim() && !String(rawName).trim() && !String(rawContact).trim()) {
-                    continue; 
-                }
+                if (!String(rawCompany).trim() && !String(rawName).trim() && !String(rawContact).trim()) continue; 
 
                 let company = String(rawCompany || "Unknown").trim().substring(0, 190);
                 if (!company || company.toLowerCase() === "unknown") company = "Unknown Company";
@@ -324,9 +306,7 @@ const LeadManager = () => {
 
                 let email = String(rawEmail || "").trim().toLowerCase();
                 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (!emailRegex.test(email)) {
-                    email = ""; 
-                }
+                if (!emailRegex.test(email)) email = ""; 
 
                 let purpose = String(rawPurpose).trim().substring(0, 190) || "N/A";
                 let sno = String(rawSno).trim().substring(0, 40);
@@ -365,7 +345,7 @@ const LeadManager = () => {
                 const BULK_URL = `${BASE_URL_FIX}/api/leads/bulk-import/`;
                 const res = await axios.post(BULK_URL, bulkPayload, getAuthHeaders());
                 toast.success(res.data.message, { id: toastId });
-                fetchLeads(1, searchQuery); // Import ke baad refresh (with current search)
+                fetchLeads(1, searchQuery);
             } catch (error) {
                 console.error("Import Failed:", error);
                 let errMsg = "Import failed!";
@@ -387,22 +367,60 @@ const LeadManager = () => {
         reader.readAsArrayBuffer(file);
     };
 
-    const handleSave = async () => {
+    // --- ✏️ EDIT & SAVE LOGIC ---
+    
+    // 1. Edit Click
+    const handleEditClick = (lead) => {
+        setEditingId(lead.id); 
+        setNewLead({
+            ...lead,
+            date: lead.date ? lead.date.slice(0, 16) : getCurrentDateTime(),
+            sno: lead.sno || '',
+            note: lead.note || '',
+            address: lead.address || ''
+        });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        toast("Editing Mode On ✏️", { icon: 'ℹ️', style: { background: '#333', color: '#fff' } });
+    };
+
+    // 2. Cancel Edit
+    const handleCancelEdit = () => {
+        setEditingId(null);
+        setNewLead({ date: getCurrentDateTime(), sno: '', company: '', name: '', contact: '', email: '', address: '', note: '', purpose: '', status: 'New' });
+    };
+
+    // 3. Save or Update (Replaces handleSave)
+    const handleSaveOrUpdate = async () => {
         if (!newLead.company) { toast.error("Company Name is Required!"); return; }
+        
+        setIsLoading(true); 
         try {
             const headers = getAuthHeaders();
-            const res = await axios.post(LEAD_API_URL, newLead, headers);
-            // Save ke baad refresh karo (current page aur search ke sath)
+            
+            if (editingId) {
+                // UPDATE
+                await axios.patch(`${LEAD_API_URL}${editingId}/`, newLead, headers);
+                toast.success("Lead Updated Successfully! 🔄");
+            } else {
+                // CREATE
+                await axios.post(LEAD_API_URL, newLead, headers);
+                toast.success("Saved Successfully! ✅");
+            }
+
             fetchLeads(currentPage, searchQuery); 
-            setNewLead({ date: getCurrentDateTime(), sno: '', company: '', name: '', contact: '', email: '', address: '', note: '', purpose: '', status: 'New' });
-            toast.success("Saved Successfully!");
+            handleCancelEdit(); 
+
         } catch (error) { 
+            console.error(error);
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
                 ? "Unauthorized: Please log in first." 
-                : "Failed to save lead.";
+                : "Operation failed.";
             toast.error(message);
+        } finally {
+            setIsLoading(false);
         }
     };
+
 
     // --- ACTIONS ---
     const handleMoveToSalesTrigger = (l) => {
@@ -421,10 +439,7 @@ const LeadManager = () => {
         try {
             await axios.post(TASK_API_URL, taskPayload, headers); 
             await axios.patch(`${LEAD_API_URL}${lead.id}/`, { status: 'Interested' }, headers); 
-            
-            // Optimistic update (taaki page refresh na karna pade turant)
             setLeads(leads.map(l => l.id === lead.id ? { ...l, status: 'Interested' } : l));
-            
             toast.success("Task Created and Lead Updated! 📞", { id: toastId });
             setShowModal(false); 
         } catch (error) { 
@@ -461,12 +476,45 @@ const LeadManager = () => {
         }
     };
 
-const handleDeleteTrigger = (id) => {
-    // Simple browser popup aayega
-    if (window.confirm("Are you sure you want to delete this lead?")) {
-        confirmDelete(id);
-    }
-};
+    // 🆕 UPDATED DELETE TRIGGER (With Infinity Duration)
+    const handleDeleteTrigger = (id) => {
+        toast.custom((t) => (
+            <div style={{ 
+                background: '#1a1a1a', 
+                border: '1px solid #ff4444', 
+                padding: '15px', 
+                borderRadius: '8px', 
+                boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                color: '#fff',
+                minWidth: '300px'
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '20px', marginRight: '10px' }}>🗑️</span>
+                    <div>
+                        <div style={{ fontWeight: 'bold' }}>Delete this Lead?</div>
+                        <div style={{ fontSize: '12px', color: '#bbb' }}>This action cannot be undone.</div>
+                    </div>
+                </div>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                    <button 
+                        onClick={() => { 
+                            toast.dismiss(t.id);
+                            confirmDelete(id);   
+                        }} 
+                        style={{ background: '#ff4444', border: 'none', color: '#fff', padding: '6px 12px', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}
+                    >
+                        Yes, Delete
+                    </button>
+                    <button 
+                        onClick={() => toast.dismiss(t.id)} 
+                        style={{ background: '#333', border: '1px solid #555', color: '#e0e0e0', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        ), { duration: Infinity, position: 'top-center' }); // 🟢 IMPORTANT: Infinity
+    };
 
     const confirmDelete = async (id) => {       
         try { 
@@ -492,13 +540,11 @@ const handleDeleteTrigger = (id) => {
             toast.error("There are no leads to export.");
             return;
         }
-
         const dataToExport = leads.map(lead => ({
             Date: formatDateTime(lead.date), Company: lead.company, Name: lead.name,
             Contact: lead.contact, Email: lead.email, Address: lead.address,
             Status: lead.status, Purpose: lead.purpose, Note: lead.note
         }));
-
         const ws = XLSX.utils.json_to_sheet(dataToExport);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Leads Data");
@@ -532,7 +578,7 @@ const handleDeleteTrigger = (id) => {
             <div style={styles.header}>
                 <div style={styles.title}>Lead Manager</div>
                 
-                {/* 👇👇 SEARCH BOX ADDED HERE 👇👇 */}
+                {/* SEARCH BOX */}
                 <div style={{ flex: 1, margin: '0 20px', maxWidth: '400px' }}>
                     <input 
                         type="text" 
@@ -540,19 +586,13 @@ const handleDeleteTrigger = (id) => {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         style={{
-                            width: '100%',
-                            padding: '10px',
-                            borderRadius: '5px',
-                            border: '1px solid #444',
-                            background: '#222',
-                            color: '#fff',
-                            outline: 'none',
-                            fontSize: '14px'
+                            width: '100%', padding: '10px', borderRadius: '5px',
+                            border: '1px solid #444', background: '#222', color: '#fff', outline: 'none', fontSize: '14px'
                         }} 
                     />
                 </div>
-                {/* 👆👆 END SEARCH BOX 👆👆 */}
 
+                {/* 🆕 BUTTONS (Save vs Update) */}
                 <div>
                     {!isReadOnly && (
                         <>
@@ -561,7 +601,20 @@ const handleDeleteTrigger = (id) => {
                                     Delete Selected ({selectedIds.length})
                                 </button>
                             )}
-                            <button style={styles.btnPrimary} onClick={handleSave}>+ Save</button>
+                            
+                            {editingId ? (
+                                <>
+                                    <button style={{...styles.btnPrimary, background: 'linear-gradient(45deg, #ffbb33, #ff8800)'}} onClick={handleSaveOrUpdate}>
+                                        🔄 Update
+                                    </button>
+                                    <button style={{...styles.btnBulkDelete, background: '#555', marginLeft: '10px'}} onClick={handleCancelEdit}>
+                                        ✖ Cancel
+                                    </button>
+                                </>
+                            ) : (
+                                <button style={styles.btnPrimary} onClick={handleSaveOrUpdate}>+ Save</button>
+                            )}
+
                             <input type="file" accept=".xlsx, .xls, .csv" ref={fileInputRef} style={{display: 'none'}} onChange={handleFileChange} />
                             <button style={styles.btnImport} onClick={handleImportClick}>📥 Import</button>
                         </>
@@ -576,15 +629,9 @@ const handleDeleteTrigger = (id) => {
                         <tr>
                             {!isReadOnly && (
                                 <th style={{...styles.th, textAlign: 'center', width: '40px'}}>
-                                    <input 
-                                        type="checkbox" 
-                                        onChange={handleSelectAll} 
-                                        checked={leads.length > 0 && selectedIds.length === leads.length} 
-                                        style={styles.checkbox} 
-                                    />
+                                    <input type="checkbox" onChange={handleSelectAll} checked={leads.length > 0 && selectedIds.length === leads.length} style={styles.checkbox} />
                                 </th>
                             )}
-
                             <th style={styles.th}>Date & Time</th>
                             <th style={styles.th}>S.No</th>
                             <th style={styles.th}>Company</th>
@@ -599,6 +646,7 @@ const handleDeleteTrigger = (id) => {
                         </tr>
                     </thead>
                     <tbody>
+                        {/* FORM ROW */}
                         {!isReadOnly && (
                             <tr style={{ background: '#2a2a2a' }}>
                                 <td style={styles.td}></td> 
@@ -625,23 +673,16 @@ const handleDeleteTrigger = (id) => {
                             </tr>
                         )}
 
-                        {/* Loading Indicator */}
+                        {/* DATA ROWS */}
                         {isLoading ? (
-                            <tr>
-                                <td colSpan="12" style={{ padding: '20px', textAlign: 'center', color: '#00ffcc' }}>Loading data...</td>
-                            </tr>
+                            <tr><td colSpan="12" style={{ padding: '20px', textAlign: 'center', color: '#00ffcc' }}>Loading data...</td></tr>
                         ) : (
                             leads.map((l, index) => (
                                 <tr key={l.id} style={{ borderBottom: '1px solid #222', background: selectedIds.includes(l.id) ? 'rgba(0, 255, 204, 0.1)' : 'transparent' }} className="hover-row">
                                     
                                     {!isReadOnly && (
                                         <td style={{...styles.td, textAlign: 'center'}}>
-                                            <input 
-                                                type="checkbox" 
-                                                checked={selectedIds.includes(l.id)} 
-                                                onChange={() => handleCheckboxChange(l.id)} 
-                                                style={styles.checkbox} 
-                                            />
+                                            <input type="checkbox" checked={selectedIds.includes(l.id)} onChange={() => handleCheckboxChange(l.id)} style={styles.checkbox} />
                                         </td>
                                     )}
 
@@ -663,8 +704,16 @@ const handleDeleteTrigger = (id) => {
                                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                                             {!isReadOnly ? (
                                                 <>
+                                                    {/* 🆕 EDIT BUTTON */}
+                                                    <button 
+                                                        onClick={() => handleEditClick(l)}
+                                                        title="Edit Lead"
+                                                        style={{ background: 'transparent', border: '1px solid #ffbb33', color: '#ffbb33', padding: '4px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}
+                                                    >
+                                                        ✏️
+                                                    </button>
+
                                                     <button style={styles.btnFollow} onClick={() => handleMoveToSalesTrigger(l)} title="Send to Sales">Follow Up 📞</button>
-                                                    
                                                     {l.status !== 'Converted' && (
                                                         <button style={styles.btnConvert} onClick={() => handleConvertTrigger(l)} title="Convert">Convert 💰</button>
                                                     )}
@@ -692,9 +741,7 @@ const handleDeleteTrigger = (id) => {
                     >
                         Previous
                     </button>
-                    
                     <span style={{ alignSelf: 'center' }}>Page {currentPage} of {totalPages}</span>
-                    
                     <button 
                         onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                         disabled={currentPage === totalPages}
@@ -707,20 +754,12 @@ const handleDeleteTrigger = (id) => {
             
             {showModal && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(8px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-                    <FollowUpModal 
-                        lead={currentLeadForTask} 
-                        onClose={() => setShowModal(false)} 
-                        onConfirm={confirmMoveToSales} 
-                    />
+                    <FollowUpModal lead={currentLeadForTask} onClose={() => setShowModal(false)} onConfirm={confirmMoveToSales} />
                 </div>
             )}
             {showPaymentModal && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(8px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-                    <PaymentDetailsModal 
-                        lead={currentLeadForTask} 
-                        onClose={() => setShowPaymentModal(false)} 
-                        onConfirm={confirmPaymentRecord} 
-                    />
+                    <PaymentDetailsModal lead={currentLeadForTask} onClose={() => setShowPaymentModal(false)} onConfirm={confirmPaymentRecord} />
                 </div>
             )}
             <style>{`
