@@ -461,17 +461,12 @@ const LeadManager = () => {
         }
     };
 
-    const handleDeleteTrigger = (id) => {
-        toast((t) => (
-            <div style={{ color: '#fff' }}>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>🗑️ Lead Delete?</div>
-                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                    <button onClick={() => { confirmDelete(id); toast.dismiss(t.id); }} style={{ background: '#ff4444', border: 'none', color: '#fff', padding: '5px 10px', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}>Yes</button>
-                    <button onClick={() => toast.dismiss(t.id)} style={{ background: '#444', border: '1px solid #555', color: '#fff', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer' }}>Cancel</button>
-                </div>
-            </div>
-        ), { style: { background: '#1a1a1a', border: '1px solid #ff4444' }, duration: 4000 });
-    };
+const handleDeleteTrigger = (id) => {
+    // Simple browser popup aayega
+    if (window.confirm("Are you sure you want to delete this lead?")) {
+        confirmDelete(id);
+    }
+};
 
     const confirmDelete = async (id) => {       
         try { 
