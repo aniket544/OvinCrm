@@ -11,8 +11,10 @@ import os
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # --- Security & Debug ---
-SECRET_KEY = 'django-insecure-5%#o^xyi5=5e3y(o6*$zil6e(bnk6ehixxhm)s#$&-q6uv+!kk'
+# Production me Secret Key environment variable se leni chahiye, par abhi hardcoded hai (theek hai testing ke liye)
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-5%#o^xyi5=5e3y(o6*$zil6e(bnk6ehixxhm)s#$&-q6uv+!kk')
 
+# Debug False rakhna production ke liye
 DEBUG = False 
 
 # FIX 1: Allow any host in production (Render default)
@@ -25,6 +27,7 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    # 'whitenoise.runserver_nostatic', # Optional: Dev me whitenoise check karne ke liye
     'django.contrib.staticfiles',
     
     # Third party apps
@@ -34,10 +37,14 @@ INSTALLED_APPS = [
     
     # Local apps
     'app',
+
+    # 👇 CLOUDINARY APPS (Order matter karta hai: cloudinary_storage pehle, fir cloudinary)
+    'cloudinary_storage', 
+    'cloudinary',
 ]
 
 MIDDLEWARE = [
-    # FIX 2: Whitenoise for static files
+    # FIX 2: Whitenoise for static files (Security ke neeche hona chahiye)
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware', 
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -80,7 +87,7 @@ DATABASES = {
 }
 
 
-# Password validation (same)
+# Password validation
 AUTH_PASSWORD_VALIDATORS = [
     { 'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator', },
     { 'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator', },
@@ -89,20 +96,21 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-# Internationalization (same)
+# Internationalization
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'Asia/Kolkata'
 USE_I18N = True
 USE_TZ = True
 
 
-# Static files (for production use)
+# --- Static files (CSS, JavaScript, Images) ---
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+# Whitenoise compression storage
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 
-# --- DRF & JWT Config (same) ---
+# --- DRF & JWT Config ---
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -115,14 +123,30 @@ SIMPLE_JWT = {
 }
 
 
-# --- FINAL CORS CONFIG ---
-# FIX 4: Sabse zaroori fix. Ye sabhi domains se registration allow kar dega.
+# --- CORS CONFIG ---
 CORS_ALLOW_ALL_ORIGINS = True
-# CORS_ALLOWED_ORIGINS list ki zaroorat nahi agar ALL_ORIGINS True hai
 
-# Default primary key field type (same)
+
+# Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-MEDIA_URL = '/media/'
+# ==========================================
+# 👇👇 CLOUDINARY MEDIA CONFIGURATION 👇👇
+# ==========================================
+
+# 1. Cloudinary Credentials (Render Environment Variables se uthayega)
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME'),
+    'API_KEY': os.environ.get('CLOUDINARY_API_KEY'),
+    'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET'),
+}
+
+# 2. Tell Django to use Cloudinary for MEDIA files (Images/Videos)
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
+# 3. Media URL (Ab ye Cloudinary ka URL ban jayega)
+MEDIA_URL = '/media/' 
+# Note: Cloudinary use karte waqt MEDIA_ROOT ki technical zaroorat nahi hoti production me,
+# par local development ke liye rakhna safe hai.
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
