@@ -3,14 +3,17 @@ import axios from "axios";
 import { toast, Toaster } from "react-hot-toast";
 
 // --- 📋 UPDATED RECEIPT MODAL (Big Image & URL Fix) ---
+// --- 📋 RECEIPT MODAL COMPONENT (UPDATED) ---
 const ReceiptModal = ({ payment, onClose }) => {
     if (!payment) return null;
 
-    // 👇 1. URL FIX: Backend URL variable define karo
+    // 👇 1. Backend URL Define karo
     const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com";
 
-    // Logic: Agar URL 'http' se shuru nahi hota, toh uske aage backend URL jod do
+    // 👇 2. Image URL Fix Logic
     let imageUrl = payment.receipt_image || payment.receipt;
+    
+    // Agar URL hai aur wo 'http' se shuru nahi hota, toh usme backend ka address jodo
     if (imageUrl && !imageUrl.startsWith('http')) {
         imageUrl = `${BASE_API_URL}${imageUrl}`;
     }
@@ -33,49 +36,37 @@ const ReceiptModal = ({ payment, onClose }) => {
     };
 
     const styles = {
-        overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000 },
-        // 👇 Modal ki width badha di taaki image achi dikhe
-        modal: { background: '#121212', width: '700px', maxHeight: '90vh', borderRadius: '12px', border: '1px solid #333', boxShadow: '0 10px 40px rgba(0,0,0,0.8)', overflowY: 'auto', fontFamily: 'sans-serif' },
-        header: { display: 'flex', justifyContent: 'space-between', padding: '20px', borderBottom: '1px solid #222', background: '#1a1a1a', position: 'sticky', top: 0 },
+        overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000 },
+        modal: { background: '#121212', width: '600px', borderRadius: '12px', border: '1px solid #333', boxShadow: '0 10px 40px rgba(0,0,0,0.8)', overflow: 'hidden', fontFamily: 'sans-serif' },
+        header: { display: 'flex', justifyContent: 'space-between', padding: '20px', borderBottom: '1px solid #222', background: '#1a1a1a' },
         title: { color: '#00ffcc', margin: 0, fontSize: '18px', fontWeight: 'bold', letterSpacing: '1px' },
-        closeBtn: { background: 'none', border: 'none', color: '#ff4444', fontSize: '24px', cursor: 'pointer', fontWeight: 'bold' },
+        closeBtn: { background: 'none', border: 'none', color: '#fff', fontSize: '24px', cursor: 'pointer' },
         body: { padding: '30px', color: '#e0e0e0' },
-        row: { display: 'flex', marginBottom: '15px', borderBottom: '1px solid #222', paddingBottom: '10px' },
+        row: { display: 'flex', marginBottom: '15px' },
         col: { flex: 1 },
         label: { display: 'block', fontSize: '12px', color: '#888', marginBottom: '5px', textTransform: 'uppercase' },
         value: { fontSize: '16px', color: '#fff', fontWeight: '500' },
         
-        // 👇 Image Container (Black Box)
         imageSection: { 
-            marginTop: '20px', 
+            marginTop: '25px', 
             background: '#000', 
             padding: '10px', 
             borderRadius: '8px', 
             border: '1px solid #333',
-            textAlign: 'center',
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'center'
+            alignItems: 'center',
+            textAlign: 'center'
         },
-        // 👇 Badi Image ka Style
+        // Image ko bada aur fit dikhane ke liye style
         bigImage: { 
             maxWidth: '100%', 
-            maxHeight: '500px', // Height limit taki screen se bahar na jaye
-            objectFit: 'contain',
-            borderRadius: '4px' 
+            maxHeight: '400px', 
+            objectFit: 'contain', 
+            borderRadius: '4px',
+            marginBottom: '15px'
         },
-        downloadBtn: { 
-            marginTop: '15px',
-            background: '#00ffcc', 
-            color: '#000', 
-            border: 'none', 
-            padding: '12px 25px', 
-            borderRadius: '6px', 
-            fontWeight: 'bold', 
-            cursor: 'pointer', 
-            fontSize: '14px',
-            width: '100%' 
-        }
+        downloadBtn: { background: '#00ffcc', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px', width: '100%' },
     };
 
     return (
@@ -83,26 +74,23 @@ const ReceiptModal = ({ payment, onClose }) => {
             <div style={styles.modal}>
                 <div style={styles.header}>
                     <h3 style={styles.title}>ORDER DETAILS</h3>
-                    <button onClick={onClose} style={styles.closeBtn}>✕</button>
+                    <button onClick={onClose} style={styles.closeBtn}>&times;</button>
                 </div>
                 <div style={styles.body}>
-                    {/* Details Section */}
                     <div style={styles.row}>
                         <div style={styles.col}><span style={styles.label}>COMPANY NAME</span><div style={styles.value}>{payment.company}</div></div>
                         <div style={styles.col}><span style={styles.label}>SALES ORDER NO.</span><div style={styles.value}>{payment.so_no || '-'}</div></div>
                     </div>
                     <div style={styles.row}>
                         <div style={styles.col}><span style={styles.label}>TOTAL AMOUNT</span><div style={styles.value}>₹ {payment.amount}</div></div>
-                        <div style={styles.col}><span style={styles.label}>REMAINING</span><div style={{...styles.value, color: '#ffbb33'}}>₹ {payment.remaining}</div></div>
+                        <div style={styles.col}><span style={styles.label}>REMAINING</span><div style={styles.value}>₹ {payment.remaining}</div></div>
                     </div>
-
-                    {/* 👇 Receipt Image Section (Ab ye Badi dikhegi) */}
+                    
                     <div style={{marginTop: '20px'}}>
                         <span style={{...styles.title, fontSize: '14px'}}>PAYMENT RECEIPT VIEW</span>
                         
                         {imageUrl ? (
                             <div style={styles.imageSection}>
-                                {/* Image yahan direct display hogi */}
                                 <img src={imageUrl} alt="Receipt Loading..." style={styles.bigImage} />
                                 
                                 <button onClick={handleDownload} style={styles.downloadBtn}>
@@ -110,9 +98,7 @@ const ReceiptModal = ({ payment, onClose }) => {
                                 </button>
                             </div>
                         ) : (
-                            <div style={{padding: '30px', textAlign: 'center', color: '#666', background: '#1a1a1a', marginTop: '10px', borderRadius: '8px'}}>
-                                🚫 No receipt uploaded for this order.
-                            </div>
+                            <div style={{padding: '20px', color: '#666'}}>No receipt uploaded</div>
                         )}
                     </div>
                 </div>
