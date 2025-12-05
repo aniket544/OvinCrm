@@ -2,12 +2,94 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { toast, Toaster } from "react-hot-toast";
 
+// --- 📋 RECEIPT MODAL COMPONENT (Added outside main component) ---
+const ReceiptModal = ({ payment, onClose }) => {
+    if (!payment) return null;
+
+    // Backend se image URL (support both field names just in case)
+    const imageUrl = payment.receipt_image || payment.receipt;
+
+    const handleDownload = async () => {
+        try {
+            const response = await fetch(imageUrl);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            // File name generator
+            link.download = `Receipt_${payment.company}_${payment.so_no || 'doc'}.jpg`; 
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (error) {
+            console.error("Download failed", error);
+            toast.error("Download failed");
+        }
+    };
+
+    const styles = {
+        overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000 },
+        modal: { background: '#121212', width: '600px', borderRadius: '12px', border: '1px solid #333', boxShadow: '0 10px 40px rgba(0,0,0,0.8)', overflow: 'hidden', fontFamily: 'sans-serif' },
+        header: { display: 'flex', justifyContent: 'space-between', padding: '20px', borderBottom: '1px solid #222', background: '#1a1a1a' },
+        title: { color: '#00ffcc', margin: 0, fontSize: '18px', fontWeight: 'bold', letterSpacing: '1px' },
+        closeBtn: { background: 'none', border: 'none', color: '#fff', fontSize: '24px', cursor: 'pointer' },
+        body: { padding: '30px', color: '#e0e0e0' },
+        row: { display: 'flex', marginBottom: '15px' },
+        col: { flex: 1 },
+        label: { display: 'block', fontSize: '12px', color: '#888', marginBottom: '5px', textTransform: 'uppercase' },
+        value: { fontSize: '16px', color: '#fff', fontWeight: '500' },
+        imageSection: { marginTop: '25px', display: 'flex', gap: '20px', alignItems: 'center', background: '#1a1a1a', padding: '15px', borderRadius: '8px' },
+        thumbnail: { width: '120px', height: '80px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #444' },
+        btnContainer: { display: 'flex', flexDirection: 'column', gap: '10px' },
+        downloadBtn: { background: '#00ffcc', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px', textAlign: 'center' },
+        viewLink: { color: '#fff', fontSize: '13px', textDecoration: 'underline', cursor: 'pointer', textAlign: 'center' }
+    };
+
+    return (
+        <div style={styles.overlay}>
+            <div style={styles.modal}>
+                <div style={styles.header}>
+                    <h3 style={styles.title}>ORDER DETAILS</h3>
+                    <button onClick={onClose} style={styles.closeBtn}>&times;</button>
+                </div>
+                <div style={styles.body}>
+                    <div style={styles.row}>
+                        <div style={styles.col}><span style={styles.label}>COMPANY NAME</span><div style={styles.value}>{payment.company}</div></div>
+                        <div style={styles.col}><span style={styles.label}>SALES ORDER NO.</span><div style={styles.value}>{payment.so_no || '-'}</div></div>
+                    </div>
+                    <div style={styles.row}>
+                        <div style={styles.col}><span style={styles.label}>TOTAL AMOUNT</span><div style={styles.value}>₹ {payment.amount}</div></div>
+                        <div style={styles.col}><span style={styles.label}>REMAINING</span><div style={styles.value}>₹ {payment.remaining}</div></div>
+                    </div>
+                    <div style={{marginTop: '20px'}}>
+                        <span style={{...styles.title, fontSize: '14px'}}>PAYMENT RECEIPT</span>
+                        {imageUrl ? (
+                            <div style={styles.imageSection}>
+                                <img src={imageUrl} alt="Receipt" style={styles.thumbnail} />
+                                <div style={styles.btnContainer}>
+                                    <button onClick={handleDownload} style={styles.downloadBtn}>DOWNLOAD</button>
+                                    <a href={imageUrl} target="_blank" rel="noopener noreferrer" style={styles.viewLink}>VIEW FULL IMAGE</a>
+                                </div>
+                            </div>
+                        ) : (<div style={{padding: '20px', color: '#666'}}>No receipt uploaded</div>)}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- 🚀 MAIN COMPONENT ---
 const PaymentStatus = () => {
   const [payments, setPayments] = useState([]);
 
-  // MODAL STATE
+  // MODAL STATES
   const [showModal, setShowModal] = useState(false);
   const [selectedPaymentId, setSelectedPaymentId] = useState(null);
+  
+  // 👇 NEW: View Receipt Modal State
+  const [viewReceiptData, setViewReceiptData] = useState(null);
+
   const [modalData, setModalData] = useState({
     company_name: "",
     task_name: "",
@@ -33,22 +115,19 @@ const PaymentStatus = () => {
     remark: "",
   });
 
-  // --- 📸 IMAGE UPLOAD STATE (NEW) ---
+  // UPLOAD STATE
   const [receiptFile, setReceiptFile] = useState(null);
   const [receiptPreview, setReceiptPreview] = useState(null);
 
-  // --- 🔒 SECURITY CHECK ---
+  // SECURITY CHECK
   const userRole = localStorage.getItem('role');
   const isReadOnly = userRole === 'Tech'; 
-  // -------------------------
 
   const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com";
   const API_URL = `${BASE_API_URL}/api/payments/`; 
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem("access_token");
-    // Note: Jab file bhejte hain, toh Content-Type aksar browser khud set kar deta hai (multipart/form-data)
-    // Lekin Authorization header zaroori hai.
     return { headers: { Authorization: `Bearer ${token}` } };
   };
 
@@ -56,17 +135,14 @@ const PaymentStatus = () => {
     fetchPayments();
   }, []);
 
-  // --- 📸 EFFECT: IMAGE PREVIEW CLEANUP (NEW) ---
+  // IMAGE PREVIEW CLEANUP
   useEffect(() => {
     if (!receiptFile) {
       setReceiptPreview(null);
       return;
     }
-    // Browser memory mein URL create karo
     const objectUrl = URL.createObjectURL(receiptFile);
     setReceiptPreview(objectUrl);
-
-    // Memory leak rokne ke liye cleanup
     return () => URL.revokeObjectURL(objectUrl);
   }, [receiptFile]);
 
@@ -164,6 +240,7 @@ const PaymentStatus = () => {
     return <span style={displayStyle}>{displayValue}</span>;
   };
 
+  // === GO THROUGH MODAL ===
   const handleGoThroughClick = (payment) => {
     setSelectedPaymentId(payment.id);
     setModalData({
@@ -204,7 +281,7 @@ const PaymentStatus = () => {
       setShowModal(false);
     } catch (error) {
       console.error("Task creation failed:", error.response?.data);
-      toast.error("Failed to send task! (Check Permissions)");
+      toast.error("Failed to send task!");
     }
   };
 
@@ -281,7 +358,6 @@ const PaymentStatus = () => {
     });
   };
 
-  // --- 📸 HANDLE FILE SELECTION (NEW) ---
   const handleFileSelect = (e) => {
     if (!e.target.files || e.target.files.length === 0) {
       setReceiptFile(null);
@@ -297,18 +373,13 @@ const PaymentStatus = () => {
 
   const handleRemoveImage = () => {
     setReceiptFile(null);
-    // Note: input value ko reset karne ke liye hum input element ko id se access kar sakte hain, 
-    // ya phir simple key change technique use kar sakte hain. 
-    // Abhi ke liye state clear kaafi hai.
     const fileInput = document.getElementById("receipt-upload-input");
     if(fileInput) fileInput.value = ""; 
   };
 
-  // --- 💾 UPDATED HANDLE SAVE (SUPPORTS FILE) ---
   const handleSave = async () => {
     if (!newPay.company.trim()) return toast.error("Company Name Required!");
 
-    // ✅ FormData ka use karenge taki image + text data backend jaye
     const formData = new FormData();
     formData.append("company", newPay.company.trim());
     formData.append("so_no", newPay.so_no);
@@ -318,23 +389,20 @@ const PaymentStatus = () => {
     formData.append("invoice", newPay.invoice);
     formData.append("remark", newPay.remark);
 
-    // Agar receipt select ki hai, toh append karo
     if (receiptFile) {
         formData.append("receipt_image", receiptFile); 
-        // NOTE: Backend pe field ka naam 'receipt_image' ya jo bhi ho, wo match karna chahiye
     }
 
     try {
       const res = await axios.post(API_URL, formData, {
         headers: {
             ...getAuthHeaders().headers,
-            "Content-Type": "multipart/form-data", // Important for files
+            "Content-Type": "multipart/form-data",
         }
       });
 
       setPayments((prev) => [...prev, res.data]);
       
-      // Reset Form
       setNewPay({
         company: "",
         so_no: "",
@@ -344,11 +412,11 @@ const PaymentStatus = () => {
         invoice: "",
         remark: "",
       });
-      setReceiptFile(null); // Clear file
+      setReceiptFile(null);
       const fileInput = document.getElementById("receipt-upload-input");
       if(fileInput) fileInput.value = ""; 
 
-      toast.success("Payment Recorded with Receipt!");
+      toast.success("Payment Recorded!");
     } catch (error) {
       console.error(error.response?.data);
       toast.error("Error saving payment!");
@@ -473,7 +541,6 @@ const PaymentStatus = () => {
       padding: "8px",
       borderRadius: "4px",
     },
-    // New Styles for Upload
     uploadLabel: {
         cursor: 'pointer',
         fontSize: '18px',
@@ -554,6 +621,8 @@ const PaymentStatus = () => {
                 <th style={styles.th}>Remaining</th>
                 <th style={styles.th}>Invoice</th>
                 <th style={styles.th}>Remark</th>
+                {/* 👇 NEW COLUMN for Receipt */}
+                <th style={{...styles.th, textAlign: 'center'}}>Receipt</th>
                 <th style={styles.th}>Action</th>
               </tr>
             </thead>
@@ -629,7 +698,7 @@ const PaymentStatus = () => {
                   />
                 </td>
                 
-                {/* 📸 ACTION COLUMN WITH UPLOAD BUTTON */}
+                {/* 📸 ACTION COLUMN WITH UPLOAD BUTTON (NEW PAYMENT) */}
                 <td style={{...styles.td, textAlign: 'center'}}>
                     <input 
                         type="file" 
@@ -650,32 +719,46 @@ const PaymentStatus = () => {
                         </label>
                     )}
                 </td>
+                <td style={styles.td}></td>
               </tr>
               )}
 
               {payments.map((p) => (
                 <tr key={p.id}>
-                  <td
-                    style={{
-                      ...styles.td,
-                      color: "#fff",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    {renderCell(p, "company")}
-                  </td>
+                  <td style={{...styles.td, color: "#fff", fontWeight: "bold"}}>{renderCell(p, "company")}</td>
                   <td style={styles.td}>{renderCell(p, "so_no")}</td>
-                  <td style={styles.td}>
-                    {renderCell(p, "amount", "number")}
-                  </td>
-                  <td style={styles.td}>
-                    {renderCell(p, "advance", "number")}
-                  </td>
-                  <td style={styles.td}>
-                    {renderCell(p, "remaining", "number")}
-                  </td>
+                  <td style={styles.td}>{renderCell(p, "amount", "number")}</td>
+                  <td style={styles.td}>{renderCell(p, "advance", "number")}</td>
+                  <td style={styles.td}>{renderCell(p, "remaining", "number")}</td>
                   <td style={styles.td}>{renderCell(p, "invoice")}</td>
                   <td style={styles.td}>{renderCell(p, "remark")}</td>
+
+                  {/* 👇 NEW COLUMN: VIEW RECEIPT BUTTON */}
+                  <td style={{ ...styles.td, textAlign: 'center' }}>
+                    {(p.receipt_image || p.receipt) ? (
+                        <button 
+                            onClick={() => setViewReceiptData(p)}
+                            style={{
+                                background: 'transparent',
+                                border: '1px solid #00ffcc',
+                                color: '#00ffcc',
+                                borderRadius: '50%',
+                                width: '30px',
+                                height: '30px',
+                                cursor: 'pointer',
+                                fontSize: '14px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                            title="View Receipt"
+                        >
+                            👁️
+                        </button>
+                    ) : (
+                        <span style={{color: '#444', fontSize: '12px'}}>-</span>
+                    )}
+                  </td>
 
                   <td style={styles.td}>
                     {p.id === editingId ? (
@@ -734,7 +817,7 @@ const PaymentStatus = () => {
           </table>
         </div>
 
-        {/* MODAL */}
+        {/* --- MODAL 1: GO THROUGH (Technical) --- */}
         {showModal && (
           <div
             style={{
@@ -994,6 +1077,15 @@ const PaymentStatus = () => {
             </div>
           </div>
         )}
+
+        {/* --- 👇 MODAL 2: RECEIPT VIEW (New) --- */}
+        {viewReceiptData && (
+            <ReceiptModal 
+                payment={viewReceiptData} 
+                onClose={() => setViewReceiptData(null)} 
+            />
+        )}
+
       </div>
     </>
   );
