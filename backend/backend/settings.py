@@ -7,6 +7,15 @@ from datetime import timedelta
 import dj_database_url
 import os
 
+
+
+if not os.environ.get('DJANGO_SETTINGS_MODULE'):
+    import django.core.management.utils
+    SECRET_KEY = django.core.management.utils.get_random_secret_key()
+
+
+
+    
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -136,12 +145,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # ==========================================
 
 # 1. Cloudinary Credentials (Render Environment Variables se uthayega)
-# settings.py (Temporary Fix for Testing)
 CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': 'dhlpacddl',                     # TERA CLOUD NAME
-    'API_KEY': '751321872639265',                  # TERA API KEY
-    'API_SECRET': 'qVmJuJJ1O8859ws1xIDFdj2bnXs',   # TERA API SECRET
+    'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME'),
+    'API_KEY': os.environ.get('CLOUDINARY_API_KEY'),
+    'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET'),
 }
+
 # 2. Tell Django to use Cloudinary for MEDIA files (Images/Videos)
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
