@@ -35,6 +35,9 @@ class Customer(models.Model):
 # 3. Payment Status Model
 class Payment(models.Model):
     owner = models.ForeignKey(User, on_delete=models.CASCADE)
+    # 👇👇 Naya Field: Date (Default aaj ki date lega) 👇👇
+    date = models.DateField(default=date.today) 
+    
     company = models.CharField(max_length=200)
     so_no = models.CharField(max_length=100, blank=True)
     amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
@@ -43,6 +46,9 @@ class Payment(models.Model):
     invoice = models.CharField(max_length=100, blank=True)
     remark = models.TextField(blank=True)
     receipt = models.ImageField(upload_to='receipts/', null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.company} - {self.amount}"
 
 # 4. Task Manager Model (System/Admin Tasks)
 class Task(models.Model):

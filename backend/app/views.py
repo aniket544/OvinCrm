@@ -396,10 +396,7 @@ class DashboardStats(APIView):
         # 🟢 SALES DATA (Sales & Manager ke liye)
         if is_sales or is_manager:
             # Leads Info
-            if is_manager:
-                leads_qs = Lead.objects.all()
-            else:
-                leads_qs = Lead.objects.all() # Shared Access Logic
+            leads_qs = Lead.objects.all() if is_manager else Lead.objects.filter(owner=user)
             
             data['total_leads'] = leads_qs.count()
             data['new_leads'] = leads_qs.filter(status='New').count()
@@ -407,30 +404,38 @@ class DashboardStats(APIView):
             data['converted_leads'] = leads_qs.filter(status='Converted').count()
             
             # Todays Follow Ups
-            if is_manager:
-                data['todays_calls'] = SalesTask.objects.filter(next_follow_up=today).count()
-            else:
-                data['todays_calls'] = SalesTask.objects.filter(next_follow_up=today).count()
+            data['todays_calls'] = SalesTask.objects.filter(owner=user, next_follow_up=today).count()
 
-            # Revenue
-            revenue = Payment.objects.aggregate(Sum('amount'))['amount__sum'] or 0
+            # --- 💰 REVENUE LOGIC (UPDATED) ---
+            payment_qs = Payment.objects.all() # Manager sabka dekhega
+            if is_sales and not is_manager:
+                payment_qs = Payment.objects.filter(owner=user) # Sales wala apna dekhega
+
+            revenue = payment_qs.aggregate(Sum('amount'))['amount__sum'] or 0
             data['total_revenue'] = revenue
+
+            # --- 🏆 LEADERBOARD (Kisne Kitna Kiya - Only for Manager/Admin View) ---
+            if is_manager:
+                leaderboard = Payment.objects.values('owner__username').annotate(total_amount=Sum('amount')).order_by('-total_amount')
+                data['leaderboard'] = leaderboard
+            
+            # --- 🕒 RECENT TRANSACTIONS (Last 5 payments) ---
+            recent_payments = payment_qs.order_by('-date', '-id')[:5]
+            data['recent_payments'] = [
+                {
+                    'company': p.company,
+                    'amount': p.amount,
+                    'date': p.date,
+                    'by': p.owner.username
+                } for p in recent_payments
+            ]
 
         # 🔴 TECH DATA (Tech & Manager ke liye)
         if is_tech or is_manager:
-            # Tech Tasks
-            if is_manager:
-                tasks_qs = Task.objects.all()
-            else:
-                tasks_qs = Task.objects.all()
-
+            tasks_qs = Task.objects.all() # Tech tasks usually shared
             data['pending_tasks'] = tasks_qs.filter(status='Pending').count()
             data['high_priority_tasks'] = tasks_qs.filter(priority='High', status='Pending').count()
-            
-            # Upcoming Service Dues
             data['service_due'] = TechData.objects.filter(service_due__gte=today).count()
-            
-            # Live Tenders
             data['active_tenders'] = Tender.objects.exclude(status__in=['Won', 'Lost']).count()
 
         # Role identify karke bhejo
