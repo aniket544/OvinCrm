@@ -21,8 +21,6 @@ const CustomerManager = () => {
     });
 
     // --- 🔒 SECURITY CHECK ---
-    // This is the SALES Customer Manager.
-    // Tech team should have READ-ONLY access.
     const userRole = localStorage.getItem('role');
     const isReadOnly = userRole === 'Tech'; 
     // -------------------------
@@ -56,6 +54,25 @@ const CustomerManager = () => {
         }
     };
 
+    // 👇👇👇 NEW FUNCTION: DIRECT STATUS UPDATE 👇👇👇
+    const handleStatusUpdate = async (id, newStatus) => {
+        // Optimistic Update (Turant UI change karega)
+        const originalCustomers = [...customers];
+        setCustomers(prev => prev.map(c => c.id === id ? { ...c, status: newStatus } : c));
+
+        try {
+            const headers = getAuthHeaders();
+            // Backend call
+            await axios.patch(`${API_URL}${id}/`, { status: newStatus }, headers);
+            toast.success(`Status updated to ${newStatus}!`);
+        } catch (error) {
+            // Agar fail hua to wapas purana wala set karega
+            setCustomers(originalCustomers);
+            toast.error("Status update failed!");
+        }
+    };
+    // 👆👆👆
+
     const handleSave = async () => {
         if (!newCustomer.company.trim()) {
             toast.error("Company Name is Required!");
@@ -79,7 +96,6 @@ const CustomerManager = () => {
         }
     };
 
-    // DELETE WITH CONFIRMATION
     const confirmDelete = async (id) => {
         try {
             const headers = getAuthHeaders();
@@ -192,7 +208,6 @@ const CustomerManager = () => {
                 <div style={styles.header}>
                     <h1 style={styles.title}>Customer Manager (Sales)</h1>
                     <div>
-                        {/* 👇 SECURITY: Hide Save Button for Tech */}
                         {!isReadOnly && (
                             <button style={styles.btnPrimary} onClick={handleSave}>+ Add Customer</button>
                         )}
@@ -215,7 +230,6 @@ const CustomerManager = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {/* 👇 SECURITY: Hide Input Row for Tech */}
                             {!isReadOnly && (
                                 <tr style={{ background: '#2a2a2a' }}>
                                     <td style={styles.td}><input type="date" name="date" value={newCustomer.date} onChange={handleInputChange} style={styles.input} /></td>
@@ -230,7 +244,7 @@ const CustomerManager = () => {
                                             <option value="Inactive">Inactive</option>
                                         </select>
                                     </td>
-                                    <td style={styles.td}>📝</td>
+                                    <td style={styles.td}>✨</td>
                                 </tr>
                             )}
 
@@ -242,20 +256,49 @@ const CustomerManager = () => {
                                     <td style={{...styles.td, color: '#00ffcc'}}>{c.contact}</td>
                                     <td style={styles.td}>{c.email}</td>
                                     <td style={styles.td}>{c.purpose}</td>
+                                    
+                                    {/* 👇👇👇 EDITED: AB YE EDITABLE DROPDOWN HAI 👇👇👇 */}
                                     <td style={styles.td}>
-                                        <span style={{
-                                            padding: '6px 14px',
-                                            borderRadius: '20px',
-                                            fontSize: '11px',
-                                            fontWeight: 'bold',
-                                            background: c.status === 'Active' ? '#28a745' : '#ff4444',
-                                            color: '#fff'
-                                        }}>
-                                            {c.status}
-                                        </span>
+                                        {!isReadOnly ? (
+                                            <select
+                                                value={c.status}
+                                                onChange={(e) => handleStatusUpdate(c.id, e.target.value)}
+                                                style={{
+                                                    background: c.status === 'Active' ? '#28a745' : '#ff4444',
+                                                    color: '#fff',
+                                                    border: 'none',
+                                                    padding: '6px 14px',
+                                                    borderRadius: '20px',
+                                                    fontSize: '11px',
+                                                    fontWeight: 'bold',
+                                                    outline: 'none',
+                                                    cursor: 'pointer',
+                                                    // Dropdown arrow hide karne ka try (Cleaner look ke liye)
+                                                    appearance: 'none',
+                                                    WebkitAppearance: 'none',
+                                                    textAlign: 'center'
+                                                }}
+                                            >
+                                                <option value="Active" style={{background: '#333'}}>Active</option>
+                                                <option value="Inactive" style={{background: '#333'}}>Inactive</option>
+                                            </select>
+                                        ) : (
+                                            // Tech walo ke liye sirf badge dikhega
+                                            <span style={{
+                                                padding: '6px 14px',
+                                                borderRadius: '20px',
+                                                fontSize: '11px',
+                                                fontWeight: 'bold',
+                                                background: c.status === 'Active' ? '#28a745' : '#ff4444',
+                                                color: '#fff'
+                                            }}>
+                                                {c.status}
+                                            </span>
+                                        )}
                                     </td>
+                                    {/* 👆👆👆 CHANGE END 👆👆👆 */}
+
                                     <td style={styles.td}>
-                                        {/* 👇 SECURITY: Hide Delete Button for Tech */}
                                         {!isReadOnly ? (
                                             <button onClick={() => handleDeleteTrigger(c.id)} style={styles.deleteBtn}>
                                                 Delete
