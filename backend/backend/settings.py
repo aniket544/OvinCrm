@@ -110,8 +110,18 @@ USE_TZ = True
 # --- Static files (CSS, JavaScript, Images) ---
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-# Whitenoise compression storage for static files
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# 👇👇👇 UPDATED FOR DJANGO 5.0+ (Ye zaroori tha) 👇👇👇
+STORAGES = {
+    # Media files (Images) ke liye Cloudinary
+    "default": {
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+    },
+    # CSS/JS files ke liye Whitenoise
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 
 # --- DRF & JWT Config ---
@@ -140,15 +150,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # 👇👇 CLOUDINARY MEDIA CONFIGURATION (FINAL) 👇👇
 # ==========================================
 
-# 1. Cloudinary Credentials (Render Environment Variables se uthayega)
+# 1. Cloudinary Credentials (Directly Hardcoded for fix)
 CLOUDINARY_STORAGE = {
     'CLOUD_NAME': 'dhlpacddl',
     'API_KEY': '751321872639265',
     'API_SECRET': 'qVmJuJJ1O8859ws1xlDFDj2bnXs'
 }
-
-# Ye line batati hai ki images Cloudinary par bhejni hain
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # Media URL ab Cloudinary ka link banega
 MEDIA_URL = '/media/' 

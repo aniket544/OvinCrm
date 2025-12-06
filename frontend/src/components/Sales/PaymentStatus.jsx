@@ -349,9 +349,8 @@ const PaymentStatus = () => {
     formData.append("remark", newPay.remark);
 
     if (receiptFile) {
-      formData.append("receipt_image", receiptFile);
-    }
-
+    formData.append("receipt", receiptFile); // <-- Ise 'receipt' kar de
+}
     try {
       const res = await axios.post(API_URL, formData, {
         headers: {
