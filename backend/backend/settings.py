@@ -7,23 +7,19 @@ from datetime import timedelta
 import dj_database_url
 import os
 
+# 👇 Zaroori Imports Cloudinary ke liye
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
 
-
-if not os.environ.get('DJANGO_SETTINGS_MODULE'):
-    import django.core.management.utils
-    SECRET_KEY = django.core.management.utils.get_random_secret_key()
-
-
-
-    
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # --- Security & Debug ---
-# Production me Secret Key environment variable se leni chahiye, par abhi hardcoded hai (theek hai testing ke liye)
+# Secret Key environment se lenge, nahi toh default use karenge
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-5%#o^xyi5=5e3y(o6*$zil6e(bnk6ehixxhm)s#$&-q6uv+!kk')
 
-# Debug False rakhna production ke liye
+# Debug False rakhna production (Render) ke liye
 DEBUG = False 
 
 # FIX 1: Allow any host in production (Render default)
@@ -36,7 +32,6 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    # 'whitenoise.runserver_nostatic', # Optional: Dev me whitenoise check karne ke liye
     'django.contrib.staticfiles',
     
     # Third party apps
@@ -47,13 +42,13 @@ INSTALLED_APPS = [
     # Local apps
     'app',
 
-    # 👇 CLOUDINARY APPS (Order matter karta hai: cloudinary_storage pehle, fir cloudinary)
+    # 👇 CLOUDINARY APPS (Order matter karta hai: storage pehle)
     'cloudinary_storage', 
     'cloudinary',
 ]
 
 MIDDLEWARE = [
-    # FIX 2: Whitenoise for static files (Security ke neeche hona chahiye)
+    # FIX 2: Whitenoise for static files (Security ke neeche)
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware', 
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -115,7 +110,7 @@ USE_TZ = True
 # --- Static files (CSS, JavaScript, Images) ---
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-# Whitenoise compression storage
+# Whitenoise compression storage for static files
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 
@@ -133,6 +128,7 @@ SIMPLE_JWT = {
 
 
 # --- CORS CONFIG ---
+# Sabhi origins allow kar rahe hain taaki frontend se issue na aaye
 CORS_ALLOW_ALL_ORIGINS = True
 
 
@@ -141,7 +137,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 # ==========================================
-# 👇👇 CLOUDINARY MEDIA CONFIGURATION 👇👇
+# 👇👇 CLOUDINARY MEDIA CONFIGURATION (FINAL) 👇👇
 # ==========================================
 
 # 1. Cloudinary Credentials (Render Environment Variables se uthayega)
@@ -151,11 +147,9 @@ CLOUDINARY_STORAGE = {
     'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET'),
 }
 
-# 2. Tell Django to use Cloudinary for MEDIA files (Images/Videos)
+# 2. Django ko batao ki Images ke liye Cloudinary use karna hai
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # 3. Media URL (Ab ye Cloudinary ka URL ban jayega)
-MEDIA_URL = '/media/' 
-# Note: Cloudinary use karte waqt MEDIA_ROOT ki technical zaroorat nahi hoti production me,
-# par local development ke liye rakhna safe hai.
+MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
