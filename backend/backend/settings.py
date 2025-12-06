@@ -142,14 +142,14 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # 1. Cloudinary Credentials (Render Environment Variables se uthayega)
 CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME'),
-    'API_KEY': os.environ.get('CLOUDINARY_API_KEY'),
-    'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET'),
+    'CLOUD_NAME': 'dhlpacddl',
+    'API_KEY': '751321872639265',
+    'API_SECRET': 'qVmJuJJ1O8859ws1xlDFDj2bnXs'
 }
 
-# 2. Django ko batao ki Images ke liye Cloudinary use karna hai
+# Ye line batati hai ki images Cloudinary par bhejni hain
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
-# 3. Media URL (Ab ye Cloudinary ka URL ban jayega)
-MEDIA_URL = '/media/'
+# Media URL ab Cloudinary ka link banega
+MEDIA_URL = '/media/' 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
