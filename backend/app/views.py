@@ -150,7 +150,7 @@ class PaymentDetail(BaseDetailView):
 class SalesTaskListCreate(BaseListCreateView):
     serializer_class = SalesTaskSerializer
     model = SalesTask
-    permission_classes = [permissions.IsAuthenticated, IsSalesTeamOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated]
     search_fields = ['lead_name', 'company', 'status']
 
     def get_queryset(self):
