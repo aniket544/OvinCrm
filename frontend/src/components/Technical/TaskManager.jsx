@@ -20,7 +20,9 @@ const TaskManager = () => {
         status: 'Pending'
     });
 
-    const API_URL = 'https://my-crm-backend-a5q4.onrender.com/api/tasks/';
+    // URL Hardcoded (Change this if needed)
+    const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com";
+    const API_URL = `${BASE_API_URL}/api/tasks/`;
 
     const getAuthHeaders = () => {
         const token = localStorage.getItem('access_token');
@@ -68,8 +70,13 @@ const TaskManager = () => {
 
     const handleSave = async () => {
         if (!newTask.company_name) { toast.error("Company Name is Required!"); return; }
+        
+        // Loading Toast
+        const toastId = toast.loading("Saving Task...");
+
         try {
             const response = await axios.post(API_URL, newTask, getAuthHeaders());
+            
             const newTasks = [...tasks, response.data];
             const sortedTasks = newTasks.sort((a, b) => {
                 const priorityOrder = { 'High': 3, 'Medium': 2, 'Low': 1 };
@@ -78,9 +85,24 @@ const TaskManager = () => {
             setTasks(sortedTasks);
 
             setNewTask({ date: today, company_name: '', client_name: '', client_id: '', gem_id: '', gem_password: '', task_name: '', priority: 'Medium', status: 'Pending' });
-            toast.success("Task Added Successfully!", { icon: '📌' });
+            
+            toast.success("Task Added Successfully!", { id: toastId, icon: '📌' });
+
         } catch (error) { 
-            toast.error("Failed to save task."); 
+            console.error("Save Error:", error);
+            
+            // 👇 DETAILED ERROR MESSAGE 👇
+            let errorMessage = "Failed to save task.";
+            if (error.response) {
+                if (error.response.status === 403) {
+                    errorMessage = "Permission Denied! (Are you in Tech Team?)";
+                } else if (error.response.data) {
+                    // Backend se jo error aayega wo dikhayenge
+                    errorMessage = JSON.stringify(error.response.data);
+                }
+            }
+            
+            toast.error(errorMessage, { id: toastId, style: {maxWidth: '500px'} }); 
         }
     };
 
