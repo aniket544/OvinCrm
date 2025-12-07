@@ -9,13 +9,11 @@ const TenderSubmission = () => {
         date: '', company: '', bid_no: '', item: '', start_date: '', end_date: '', status: 'Draft'
     });
 
-    // --- 🔒 SECURITY CHECK (Added) ---
-    // Agar banda Sales team se hai, toh wo Tenders ko Edit/Delete nahi kar sakta
+    // --- 🔒 SECURITY CHECK ---
     const userRole = localStorage.getItem('role');
     const isReadOnly = userRole === 'Sales'; 
     // ---------------------------------
 
-    // ✅ FIXED URLS
     const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com";
     const API_URL = `${BASE_API_URL}/api/tenders/`; 
 
@@ -35,7 +33,9 @@ const TenderSubmission = () => {
         try {
             const headers = getAuthHeaders();
             const response = await axios.get(API_URL, headers);
-            setTenders(response.data);
+            // Sort by Date (Latest First)
+            const sortedTenders = response.data.sort((a, b) => new Date(b.date) - new Date(a.date));
+            setTenders(sortedTenders);
         } catch (error) {
             console.error("Fetch error:", error);
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
@@ -44,6 +44,38 @@ const TenderSubmission = () => {
             toast.error(message);
         }
     };
+
+    // 👇👇👇 NEW SMART COLOR LOGIC 👇👇👇
+    const getTenderStatusColor = (endDate, status) => {
+        // 1. Agar Result aa chuka hai
+        if (status === 'Won') return { backgroundColor: 'rgba(39, 174, 96, 0.15)', borderLeft: '4px solid #28a745' }; // Green
+        if (status === 'Lost') return { opacity: '0.5', borderLeft: '4px solid #555' }; // Dimmed (Grey)
+
+        // 2. Deadline Checks
+        if (!endDate) return {};
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const end = new Date(endDate);
+        end.setHours(0, 0, 0, 0);
+
+        const diffTime = end - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        // Logic:
+        if (diffDays < 0) {
+            // Date nikal gayi (Expired) -> RED 🔴
+            return { backgroundColor: 'rgba(255, 68, 68, 0.15)', borderLeft: '4px solid #ff4444' };
+        }
+        if (diffDays >= 0 && diffDays <= 3) {
+            // 0 se 3 din bache hain (Urgent) -> YELLOW/ORANGE ⚠️
+            return { backgroundColor: 'rgba(255, 187, 51, 0.15)', borderLeft: '4px solid #ffbb33' };
+        }
+
+        return {}; // Normal
+    };
+    // 👆👆👆
 
     const handleSave = async () => {
         if (!newTender.bid_no?.trim()) {
@@ -54,7 +86,7 @@ const TenderSubmission = () => {
         try {
             const headers = getAuthHeaders();
             const response = await axios.post(API_URL, newTender, headers);
-            setTenders(prev => [...prev, response.data]);
+            setTenders(prev => [response.data, ...prev]);
             setNewTender({ date: '', company: '', bid_no: '', item: '', start_date: '', end_date: '', status: 'Draft' });
             toast.success("Tender Saved Successfully!", { icon: 'Success', style: { background: '#333', color: '#00ffcc' } });
         } catch (error) {
@@ -66,7 +98,6 @@ const TenderSubmission = () => {
         }
     };
 
-    // DELETE WITH CONFIRMATION
     const confirmDelete = async (id) => {
         try {
             const headers = getAuthHeaders();
@@ -173,23 +204,6 @@ const TenderSubmission = () => {
         deleteBtn: { background: 'transparent', border: '1.5px solid #ff4444', color: '#ff4444', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', transition: 'all 0.3s' }
     };
 
-    // Helper function for row styling
-    const getTenderStatusColor = (endDate, status) => {
-        if (status === 'Won') return { backgroundColor: 'rgba(39, 174, 96, 0.2)', borderLeft: '3px solid #28a745' };
-        if (status === 'Lost') return { backgroundColor: 'rgba(255, 68, 68, 0.2)', borderLeft: '3px solid #ff4444' };
-        if (!endDate) return {};
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const end = new Date(endDate);
-        end.setHours(0, 0, 0, 0);
-
-        if (end < today) {
-            return { backgroundColor: 'rgba(255, 165, 0, 0.2)', borderLeft: '3px solid #ffbb33' }; // Expired/Passed
-        }
-        return {};
-    }
-
     return (
         <>
             <Toaster 
@@ -204,11 +218,9 @@ const TenderSubmission = () => {
                 <div style={styles.header}>
                     <h1 style={styles.title}>Tender Submission</h1>
                     <div>
-                        {/* 👇 SECURITY: Hide Save Button for Sales */}
                         {!isReadOnly && (
                             <button style={styles.btnPrimary} onClick={handleSave}>+ New Bid</button>
                         )}
-                        {/* 👆 End Security Check */}
                         <button style={styles.btnSuccess} onClick={handleExport}>Export Excel</button>
                     </div>
                 </div>
@@ -228,7 +240,6 @@ const TenderSubmission = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {/* 👇 SECURITY: Hide Input Row for Sales */}
                             {!isReadOnly && (
                                 <tr style={{ background: '#2a2a2a' }}>
                                     <td style={styles.td}><input type="date" name="date" value={newTender.date} onChange={handleInputChange} style={styles.input} /></td>
@@ -248,10 +259,9 @@ const TenderSubmission = () => {
                                     <td style={styles.td}></td>
                                 </tr>
                             )}
-                            {/* 👆 End Security Check */}
 
-                            {/* Existing Tenders */}
                             {tenders.map((t) => (
+                                // 👇👇👇 Applying Dynamic Style Here 👇👇👇
                                 <tr key={t.id} className="hover-row" style={getTenderStatusColor(t.end_date, t.status)}>
                                     <td style={styles.td}>{t.date || '-'}</td>
                                     <td style={{...styles.td, color: '#fff', fontWeight: 'bold'}}>{t.company}</td>
@@ -266,15 +276,15 @@ const TenderSubmission = () => {
                                             fontSize: '12px',
                                             fontWeight: 'bold',
                                             background: t.status === 'Won' ? '#28a745' : 
-                                                            t.status === 'Lost' ? '#ff4444' : 
+                                                            t.status === 'Lost' ? '#333' : 
                                                             t.status === 'Submitted' ? '#007bff' : '#666',
-                                            color: '#fff'
+                                            color: '#fff',
+                                            border: t.status === 'Lost' ? '1px solid #555' : 'none'
                                         }}>
                                             {t.status}
                                         </span>
                                     </td>
                                     <td style={styles.td}>
-                                        {/* 👇 SECURITY: Hide Delete Button for Sales */}
                                         {!isReadOnly ? (
                                             <button 
                                                 onClick={() => handleDeleteTrigger(t.id)} 
@@ -287,7 +297,6 @@ const TenderSubmission = () => {
                                         ) : (
                                             <span style={{fontSize: '16px', opacity: 0.5, cursor: 'not-allowed'}} title="Read Only">🔒</span>
                                         )}
-                                        {/* 👆 End Security Check */}
                                     </td>
                                 </tr>
                             ))}
@@ -327,4 +336,4 @@ const TenderSubmission = () => {
     );
 };
 
-export default TenderSubmission;
+export default TenderSubmission;        
