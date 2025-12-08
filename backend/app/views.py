@@ -222,7 +222,7 @@ class TenderDetail(BaseDetailView):
 class TechDataListCreate(BaseListCreateView):
     serializer_class = TechDataSerializer
     model = TechData
-    permission_classes = [permissions.IsAuthenticated, IsTechTeamOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated]
     search_fields = ['company', 'machine', 'serial']
 
     def get_queryset(self):
