@@ -9,7 +9,7 @@ const TaskManager = () => {
 
     // --- 🔒 SECURITY CHECK ---
     const userRole = localStorage.getItem('role');
-    const isReadOnly = userRole === 'Sales'; // Sales wale edit nahi kar payenge
+    const isReadOnly = userRole !== 'Tech' && userRole !== 'Admin'; // Sales wale edit nahi kar payenge
     // -------------------------
 
     const [newTask, setNewTask] = useState({
