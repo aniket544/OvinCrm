@@ -17,7 +17,7 @@ const CustomerData = () => {
 
     // ✅ FIXED URL
     const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com";
-    const API_URL = `${BASE_API_URL}/api/customers/`;
+    const API_URL = `${BASE_API_URL}/api/tech-data/`;
 
     const getAuthHeaders = () => {
         const token = localStorage.getItem('access_token');
