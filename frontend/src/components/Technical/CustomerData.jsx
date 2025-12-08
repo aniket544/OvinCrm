@@ -1,22 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import * as XLSX from 'xlsx'; // ❌ Build error rokne ke liye comment kiya hai
+import * as XLSX from 'xlsx'; 
 import { toast, Toaster } from 'react-hot-toast'; 
 
 const CustomerData = () => {
     const [data, setData] = useState([]);
+    
+    // 👇👇👇 FIX: 'name' ko 'company' kar diya taaki backend accept kare
     const [newData, setNewData] = useState({
-        name: '', machine: '', serial: '', warranty: '', service_due: '', status: 'Active'
+        company: '', machine: '', serial: '', warranty: '', service_due: '', status: 'Active'
     });
 
-    // --- 🔒 SECURITY CHECK (Added) ---
-    // Agar banda Sales team se hai, toh wo Technical Customer Data ko Edit/Delete nahi kar sakta
+    // --- 🔒 SECURITY CHECK ---
     const userRole = localStorage.getItem('role');
     const isReadOnly = userRole === 'Sales'; 
-    // ---------------------------------
+    // -------------------------
 
-    // ✅ FIXED URL
     const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com";
+    
+    // 👇👇👇 FIX: URL ab sahi Technical Data wala hai
     const API_URL = `${BASE_API_URL}/api/tech-data/`;
 
     const getAuthHeaders = () => {
@@ -46,7 +48,8 @@ const CustomerData = () => {
     };
 
     const handleSave = async () => {
-        if (!newData.name.trim()) {
+        // 👇 Check updated field name
+        if (!newData.company.trim()) {
             toast.error("Company Name is Required!");
             return;
         }
@@ -54,18 +57,18 @@ const CustomerData = () => {
             const headers = getAuthHeaders();
             const response = await axios.post(API_URL, newData, headers);
             setData(prev => [...prev, response.data]);
-            setNewData({ name: '', machine: '', serial: '', warranty: '', service_due: '', status: 'Active' });
+            // 👇 Reset updated field name
+            setNewData({ company: '', machine: '', serial: '', warranty: '', service_due: '', status: 'Active' });
             toast.success("Technical Data Saved!");
         } catch (error) {
             console.error("Save error:", error.response?.data);
             const message = error.message.includes("Unauthorized") || error.response?.status === 401
                 ? "Unauthorized: Please log in first." 
-                : "Error saving data.";
+                : "Error saving data. Check fields.";
             toast.error(message);
         }
     };
 
-    // DELETE WITH CONFIRMATION
     const confirmDelete = async (id) => {
         try {
             const headers = getAuthHeaders();
@@ -93,13 +96,7 @@ const CustomerData = () => {
                             toast.dismiss(t.id);
                         }}
                         style={{
-                            background: '#ff4444',
-                            color: 'white',
-                            border: 'none',
-                            padding: '10px 20px',
-                            borderRadius: '8px',
-                            fontWeight: 'bold',
-                            cursor: 'pointer'
+                            background: '#ff4444', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer'
                         }}
                     >
                         Yes, Delete
@@ -107,22 +104,14 @@ const CustomerData = () => {
                     <button
                         onClick={() => toast.dismiss(t.id)}
                         style={{
-                            background: '#444',
-                            color: '#fff',
-                            border: '1px solid #666',
-                            padding: '10px 20px',
-                            borderRadius: '8px',
-                            cursor: 'pointer'
+                            background: '#444', color: '#fff', border: '1px solid #666', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer'
                         }}
                     >
                         Cancel
                     </button>
                 </div>
             </div>
-        ), {
-            duration: 10000,
-            style: { background: '#1a1a1a', border: '2px solid #ff4444' }
-        });
+        ), { duration: 10000, style: { background: '#1a1a1a', border: '2px solid #ff4444' } });
     };
 
     const handleInputChange = (e) => {
@@ -130,15 +119,10 @@ const CustomerData = () => {
     };
 
     const handleExport = () => {
-        if (data.length === 0) {
-            toast.error("No data to export!");
-            return;
-        }
-
-        // toast.error("Export feature requires xlsx package.");
+        if (data.length === 0) { toast.error("No data to export!"); return; }
         
         const exportData = data.map(d => ({
-            'Company': d.name, // Fixed: Using 'name' instead of 'company' to match state
+            'Company': d.company, // 👇 Using 'company' from backend data
             'Machine': d.machine,
             'Serial No.': d.serial,
             'Warranty Expiry': d.warranty || '-',
@@ -148,13 +132,10 @@ const CustomerData = () => {
 
         const ws = XLSX.utils.json_to_sheet(exportData);
         ws['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 12 }];
-
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Customer_Data");
         XLSX.writeFile(wb, "Technical_Customer_Data.xlsx");
-
         toast.success("Excel exported successfully!");
-        
     };
 
     const styles = {
@@ -180,11 +161,7 @@ const CustomerData = () => {
                 <div style={styles.header}>
                     <h1 style={styles.title}>Technical Customer Data</h1>
                     <div>
-                        {/* 👇 SECURITY: Hide Save Button for Sales */}
-                        {!isReadOnly && (
-                            <button style={styles.btnPrimary} onClick={handleSave}>+ Add Record</button>
-                        )}
-                        {/* 👆 End Security Check */}
+                        {!isReadOnly && <button style={styles.btnPrimary} onClick={handleSave}>+ Add Record</button>}
                         <button style={styles.btnSuccess} onClick={handleExport}>Export Excel</button>
                     </div>
                 </div>
@@ -203,10 +180,10 @@ const CustomerData = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {/* 👇 SECURITY: Hide Input Row for Sales */}
                             {!isReadOnly && (
                                 <tr style={{ background: '#2a2a2a' }}>
-                                    <td style={styles.td}><input type="text" name="name" value={newData.name} onChange={handleInputChange} placeholder="Company" style={styles.input} /></td>
+                                    {/* 👇 Fix: Name attribute 'company' kar diya */}
+                                    <td style={styles.td}><input type="text" name="company" value={newData.company} onChange={handleInputChange} placeholder="Company" style={styles.input} /></td>
                                     <td style={styles.td}><input type="text" name="machine" value={newData.machine} onChange={handleInputChange} placeholder="Machine" style={styles.input} /></td>
                                     <td style={styles.td}><input type="text" name="serial" value={newData.serial} onChange={handleInputChange} placeholder="SN-000" style={styles.input} /></td>
                                     <td style={styles.td}><input type="date" name="warranty" value={newData.warranty} onChange={handleInputChange} style={styles.input} /></td>
@@ -221,38 +198,30 @@ const CustomerData = () => {
                                     <td style={styles.td}>🛠️</td>
                                 </tr>
                             )}
-                            {/* 👆 End Security Check */}
 
                             {data.map((d) => (
                                 <tr key={d.id}>
-                                    <td style={{...styles.td, color: '#fff', fontWeight: 'bold'}}>{d.name}</td>
+                                    {/* 👇 Display correct field 'company' */}
+                                    <td style={{...styles.td, color: '#fff', fontWeight: 'bold'}}>{d.company}</td>
                                     <td style={styles.td}>{d.machine || '-'}</td>
                                     <td style={{...styles.td, color: '#00ffcc', fontWeight: 'bold'}}>{d.serial}</td>
                                     <td style={styles.td}>{d.warranty || '-'}</td>
                                     <td style={styles.td}>{d.service_due || '-'}</td>
                                     <td style={styles.td}>
                                         <span style={{
-                                            padding: '6px 14px',
-                                            borderRadius: '20px',
-                                            fontSize: '12px',
-                                            fontWeight: 'bold',
-                                            background: d.status === 'Active' ? '#28a745' : 
-                                                         d.status === 'Expired' ? '#ff4444' : '#ffbb33',
+                                            padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold',
+                                            background: d.status === 'Active' ? '#28a745' : d.status === 'Expired' ? '#ff4444' : '#ffbb33',
                                             color: '#fff'
                                         }}>
                                             {d.status}
                                         </span>
                                     </td>
                                     <td style={styles.td}>
-                                        {/* 👇 SECURITY: Hide Delete Button for Sales */}
                                         {!isReadOnly ? (
-                                            <button onClick={() => handleDeleteTrigger(d.id)} style={styles.deleteBtn}>
-                                                Delete
-                                            </button>
+                                            <button onClick={() => handleDeleteTrigger(d.id)} style={styles.deleteBtn}>Delete</button>
                                         ) : (
                                             <span style={{fontSize: '16px', opacity: 0.5, cursor: 'not-allowed'}} title="Read Only">🔒</span>
                                         )}
-                                        {/* 👆 End Security Check */}
                                     </td>
                                 </tr>
                             ))}
@@ -260,14 +229,7 @@ const CustomerData = () => {
                     </table>
                 </div>
             </div>
-
-            <style>{`
-                input[type="date"]::-webkit-calendar-picker-indicator {
-                    filter: invert(1);
-                    cursor: pointer;
-                }
-                tr:hover { background-color: #252525 !important; }
-            `}</style>
+            <style>{`input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; } tr:hover { background-color: #252525 !important; }`}</style>
         </>
     );
 };
