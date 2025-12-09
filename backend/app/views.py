@@ -251,6 +251,10 @@ class ConvertLeadToPayment(APIView):
             Payment.objects.create(
                 owner=request.user,
                 company=lead.company,
+                
+                # 👇👇👇 MAGIC LINE: Lead ka S.No yahan copy hoga 👇👇👇
+                sno=lead.sno, 
+                
                 so_no=data.get('so_no', 'N/A'),
                 amount=data.get('amount', 0),
                 advance=data.get('advance', 0),
@@ -267,7 +271,8 @@ class ConvertLeadToPayment(APIView):
         except Exception as e:
              print("Error saving payment:", str(e)) 
              return Response({"error": f"Database error: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-
+        
+        
 # 2. Go Through: Payment -> Task
 class CreateTaskFromPayment(APIView):
     permission_classes = [permissions.IsAuthenticated] 

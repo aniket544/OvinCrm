@@ -37,7 +37,7 @@ class Payment(models.Model):
     owner = models.ForeignKey(User, on_delete=models.CASCADE)
     # 👇👇 Naya Field: Date (Default aaj ki date lega) 👇👇
     date = models.DateField(default=date.today) 
-    
+    sno = models.CharField(max_length=50, blank=True)
     company = models.CharField(max_length=200)
     so_no = models.CharField(max_length=100, blank=True)
     amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
