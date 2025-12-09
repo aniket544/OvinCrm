@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { toast, Toaster } from "react-hot-toast";
+import * as XLSX from "xlsx";
 
 const PaymentStatus = () => {
   const [payments, setPayments] = useState([]);
@@ -68,32 +69,24 @@ const PaymentStatus = () => {
   }, [receiptFile]);
 
   // --- 👇 HELPER: GET FULL IMAGE URL ---
-  // Ye check karega ki backend se full URL aa raha hai ya relative path
   const getFullImageUrl = (path) => {
     if (!path) return "";
-    if (path.startsWith("http")) return path; // Agar already full link hai (Cloudinary/S3)
-    return `${BASE_API_URL}${path}`; // Agar local media file hai
+    if (path.startsWith("http")) return path;
+    return `${BASE_API_URL}${path}`;
   };
 
-  // --- 👇 HELPER: FORCE DOWNLOAD FUNCTION (ADDED) ---
+  // --- 👇 HELPER: FORCE DOWNLOAD FUNCTION ---
   const handleForceDownload = async (imageUrl, fileName) => {
     const toastId = toast.loading("Downloading...");
     try {
-      // Image ko fetch karke 'Blob' (File) banayenge
       const response = await fetch(imageUrl);
       const blob = await response.blob();
-
-      // Browser memory me temporary URL banayenge
       const url = window.URL.createObjectURL(blob);
-
-      // Fake link click karwayenge
       const link = document.createElement("a");
       link.href = url;
-      link.download = fileName; // Ye naam se download hogi
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
-
-      // Safai (Cleanup)
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       toast.dismiss(toastId);
@@ -301,7 +294,39 @@ const PaymentStatus = () => {
 
   const handleExport = () => {
     if (payments.length === 0) return toast.error("No data to export!");
-    toast.error("Export feature requires xlsx package.");
+
+    // 👇👇 UPDATE: Added S.No to export data
+    const exportData = payments.map((p) => ({
+      "S.No": p.sno || "-",
+      Company: p.company,
+      "SO No": p.so_no,
+      "Total Amount": p.amount,
+      Advance: p.advance,
+      Remaining: p.remaining,
+      Invoice: p.invoice,
+      Remark: p.remark,
+      "Has Receipt": p.receipt_image || p.receipt ? "Yes" : "No",
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    // 👇 UPDATE: Added width for S.No column
+    ws["!cols"] = [
+      { wch: 10 },
+      { wch: 25 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 30 },
+      { wch: 10 },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Payments");
+    XLSX.writeFile(wb, "Payment_List.xlsx");
+
+    toast.success("Excel Downloaded Successfully! 📥");
   };
 
   const handleInputChange = (e) => {
@@ -349,8 +374,9 @@ const PaymentStatus = () => {
     formData.append("remark", newPay.remark);
 
     if (receiptFile) {
-    formData.append("receipt", receiptFile); // <-- Ise 'receipt' kar de
-}
+      formData.append("receipt", receiptFile);
+    }
+
     try {
       const res = await axios.post(API_URL, formData, {
         headers: {
@@ -572,6 +598,8 @@ const PaymentStatus = () => {
           <table style={styles.table}>
             <thead>
               <tr>
+                {/* 👇👇👇 UPDATED: S.No added as first column */}
+                <th style={styles.th}>S.No</th>
                 <th style={styles.th}>Company Name</th>
                 <th style={styles.th}>Sales Order No.</th>
                 <th style={styles.th}>Total</th>
@@ -587,6 +615,11 @@ const PaymentStatus = () => {
               {/* Security Check: Input Row Hide for Tech */}
               {!isReadOnly && (
                 <tr style={{ background: "#2a2a2a" }}>
+                  {/* 👇👇👇 ADDED: Placeholder cell for S.No in input row */}
+                  <td style={styles.td}>
+                    <span style={{ color: "#666" }}>-</span>
+                  </td>
+
                   <td style={styles.td}>
                     <input
                       name="company"
@@ -695,6 +728,11 @@ const PaymentStatus = () => {
 
               {payments.map((p) => (
                 <tr key={p.id}>
+                  {/* 👇👇👇 ADDED: S.No Display Here */}
+                  <td style={{ ...styles.td, color: "#bbb" }}>
+                    {p.sno || "-"}
+                  </td>
+
                   <td
                     style={{ ...styles.td, color: "#fff", fontWeight: "bold" }}
                   >
@@ -1053,7 +1091,7 @@ const PaymentStatus = () => {
           </div>
         )}
 
-        {/* --- 👇 REPLACED GREEN DASHBOARD PREVIEW PANEL --- */}
+        {/* --- BOTTOM PREVIEW PANEL --- */}
         {bottomPreview && (
           <div
             style={{
@@ -1091,14 +1129,6 @@ const PaymentStatus = () => {
               </button>
             </div>
 
-            {/* Debugging log */}
-            {console.log(
-              "Image URL:",
-              getFullImageUrl(
-                bottomPreview.receipt_image || bottomPreview.receipt
-              )
-            )}
-
             {/* Image Display */}
             <img
               src={getFullImageUrl(
@@ -1121,7 +1151,6 @@ const PaymentStatus = () => {
             />
 
             <div style={{ marginTop: "15px" }}>
-              {/* 👇 UPDATED DOWNLOAD BUTTON */}
               <button
                 onClick={() =>
                   handleForceDownload(
