@@ -22,6 +22,8 @@ const PaymentStatus = () => {
   // --- EDITING STATES ---
   const [editingId, setEditingId] = useState(null);
   const [currentEditData, setCurrentEditData] = useState({});
+  // 👇👇 NEW: State to hold file during edit
+  const [editReceiptFile, setEditReceiptFile] = useState(null);
 
   // --- NEW PAYMENT STATE ---
   const [newPay, setNewPay] = useState({
@@ -112,6 +114,7 @@ const PaymentStatus = () => {
   const handleEditStart = (p) => {
     setEditingId(p.id);
     setCurrentEditData({ ...p });
+    setEditReceiptFile(null); // Reset edit file state
   };
 
   const handleEditChange = (e) => {
@@ -127,18 +130,36 @@ const PaymentStatus = () => {
     });
   };
 
+  // 👇👇 UPDATED: Handle Save with FormData for Image Upload
   const handleEditSave = async (id) => {
-    const dataToSend = {
-      ...currentEditData,
-      amount: parseFloat(currentEditData.amount) || 0,
-      advance: parseFloat(currentEditData.advance) || 0,
-      remaining: parseFloat(currentEditData.remaining) || 0,
-    };
+    const formData = new FormData();
+
+    // Append all text fields
+    formData.append("company", currentEditData.company);
+    formData.append("so_no", currentEditData.so_no || "");
+    formData.append("amount", parseFloat(currentEditData.amount) || 0);
+    formData.append("advance", parseFloat(currentEditData.advance) || 0);
+    formData.append("remaining", parseFloat(currentEditData.remaining) || 0);
+    formData.append("invoice", currentEditData.invoice || "");
+    formData.append("remark", currentEditData.remark || "");
+
+    // 👇 Append Receipt File if selected
+    if (editReceiptFile) {
+      formData.append("receipt", editReceiptFile);
+    }
 
     try {
-      await axios.patch(`${API_URL}${id}/`, dataToSend, getAuthHeaders());
-      toast.success("Record Updated!");
+      // Use FormData headers (multipart/form-data)
+      await axios.patch(`${API_URL}${id}/`, formData, {
+        headers: {
+          ...getAuthHeaders().headers,
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      toast.success("Record Updated Successfully!");
       setEditingId(null);
+      setEditReceiptFile(null);
       fetchPayments();
     } catch (error) {
       console.error("Edit Save error:", error.response?.data);
@@ -149,6 +170,7 @@ const PaymentStatus = () => {
   const handleEditCancel = () => {
     setEditingId(null);
     setCurrentEditData({});
+    setEditReceiptFile(null);
   };
 
   const renderCell = (p, field, type = "text") => {
@@ -749,9 +771,38 @@ const PaymentStatus = () => {
                   <td style={styles.td}>{renderCell(p, "invoice")}</td>
                   <td style={styles.td}>{renderCell(p, "remark")}</td>
 
-                  {/* 👇 VIEW RECEIPT BUTTON (Sets Bottom Preview) */}
+                  {/* 👇👇👇 UPDATED RECEIPT COLUMN LOGIC 👇👇👇 */}
                   <td style={{ ...styles.td, textAlign: "center" }}>
-                    {p.receipt_image || p.receipt ? (
+                    {p.id === editingId ? (
+                      // EDIT MODE: Show Upload Button
+                      <>
+                        <input
+                          type="file"
+                          id={`edit-receipt-${p.id}`}
+                          style={{ display: "none" }}
+                          accept="image/*"
+                          onChange={(e) =>
+                            setEditReceiptFile(e.target.files[0])
+                          }
+                        />
+                        <label
+                          htmlFor={`edit-receipt-${p.id}`}
+                          style={{
+                            cursor: "pointer",
+                            background: editReceiptFile ? "#00ffcc" : "#333",
+                            color: editReceiptFile ? "#000" : "#fff",
+                            padding: "4px 8px",
+                            borderRadius: "4px",
+                            fontSize: "11px",
+                            border: "1px solid #555",
+                            display: "inline-block",
+                          }}
+                        >
+                          {editReceiptFile ? "File Selected" : "📷 Upload New"}
+                        </label>
+                      </>
+                    ) : // VIEW MODE: Show Eye Icon or Dash
+                    p.receipt_image || p.receipt ? (
                       <button
                         onClick={() => setBottomPreview(p)}
                         style={{
@@ -775,6 +826,7 @@ const PaymentStatus = () => {
                       <span style={{ color: "#444", fontSize: "12px" }}>-</span>
                     )}
                   </td>
+                  {/* 👆👆👆 END UPDATE 👆👆👆 */}
 
                   <td style={styles.td}>
                     {p.id === editingId ? (
