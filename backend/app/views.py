@@ -234,6 +234,8 @@ class TechDataDetail(BaseDetailView):
 # ==========================================
 
 # 1. Convert Lead -> Payment
+# views.py ke andar yeh class dhund aur update kar
+
 class ConvertLeadToPayment(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -252,8 +254,11 @@ class ConvertLeadToPayment(APIView):
                 owner=request.user,
                 company=lead.company,
                 
-                # 👇👇👇 MAGIC LINE: Lead ka S.No yahan copy hoga 👇👇👇
-                sno=lead.sno, 
+                # 👇👇👇 MAGIC LINE (ISKO DHYAN SE DEKH) 👇👇👇
+                # Iska matlab: Agar S.No bhara hai to wahi le, 
+                # Agar khali hai to Lead ki ID (Ex: 45) ko S.No bana de.
+                sno=lead.sno if lead.sno else str(lead.id), 
+                # 👆👆👆 UPDATE END 👆👆👆
                 
                 so_no=data.get('so_no', 'N/A'),
                 amount=data.get('amount', 0),
@@ -272,6 +277,7 @@ class ConvertLeadToPayment(APIView):
              print("Error saving payment:", str(e)) 
              return Response({"error": f"Database error: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
         
+
         
 # 2. Go Through: Payment -> Task
 class CreateTaskFromPayment(APIView):
