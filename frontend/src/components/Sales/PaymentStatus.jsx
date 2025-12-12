@@ -9,10 +9,13 @@ const PaymentStatus = () => {
   // --- MODAL STATES (For Task Handover) ---
   const [showModal, setShowModal] = useState(false);
   const [selectedPaymentId, setSelectedPaymentId] = useState(null);
+  
+  // 👇 CHANGE 1: Added client_phone to state
   const [modalData, setModalData] = useState({
     company_name: "",
     task_name: "",
     client_name: "",
+    client_phone: "", 
     client_id: "",
     gem_id: "",
     gem_password: "",
@@ -22,7 +25,6 @@ const PaymentStatus = () => {
   // --- EDITING STATES ---
   const [editingId, setEditingId] = useState(null);
   const [currentEditData, setCurrentEditData] = useState({});
-  // 👇👇 NEW: State to hold file during edit
   const [editReceiptFile, setEditReceiptFile] = useState(null);
 
   // --- NEW PAYMENT STATE ---
@@ -40,7 +42,7 @@ const PaymentStatus = () => {
   const [receiptFile, setReceiptFile] = useState(null);
   const [receiptPreview, setReceiptPreview] = useState(null);
 
-  // --- 👇 NEW: BOTTOM PREVIEW STATE ---
+  // --- BOTTOM PREVIEW STATE ---
   const [bottomPreview, setBottomPreview] = useState(null);
 
   // --- SECURITY CHECK ---
@@ -49,6 +51,8 @@ const PaymentStatus = () => {
 
   const BASE_API_URL = "https://my-crm-backend-a5q4.onrender.com";
   const API_URL = `${BASE_API_URL}/api/payments/`;
+  // 👇 CHANGE 2: Added Leads API URL
+  const LEADS_API_URL = `${BASE_API_URL}/api/leads/`;
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem("access_token");
@@ -70,14 +74,12 @@ const PaymentStatus = () => {
     return () => URL.revokeObjectURL(objectUrl);
   }, [receiptFile]);
 
-  // --- 👇 HELPER: GET FULL IMAGE URL ---
   const getFullImageUrl = (path) => {
     if (!path) return "";
     if (path.startsWith("http")) return path;
     return `${BASE_API_URL}${path}`;
   };
 
-  // --- 👇 HELPER: FORCE DOWNLOAD FUNCTION ---
   const handleForceDownload = async (imageUrl, fileName) => {
     const toastId = toast.loading("Downloading...");
     try {
@@ -114,7 +116,7 @@ const PaymentStatus = () => {
   const handleEditStart = (p) => {
     setEditingId(p.id);
     setCurrentEditData({ ...p });
-    setEditReceiptFile(null); // Reset edit file state
+    setEditReceiptFile(null);
   };
 
   const handleEditChange = (e) => {
@@ -130,11 +132,8 @@ const PaymentStatus = () => {
     });
   };
 
-  // 👇👇 UPDATED: Handle Save with FormData for Image Upload
   const handleEditSave = async (id) => {
     const formData = new FormData();
-
-    // Append all text fields
     formData.append("company", currentEditData.company);
     formData.append("so_no", currentEditData.so_no || "");
     formData.append("amount", parseFloat(currentEditData.amount) || 0);
@@ -143,13 +142,11 @@ const PaymentStatus = () => {
     formData.append("invoice", currentEditData.invoice || "");
     formData.append("remark", currentEditData.remark || "");
 
-    // 👇 Append Receipt File if selected
     if (editReceiptFile) {
       formData.append("receipt", editReceiptFile);
     }
 
     try {
-      // Use FormData headers (multipart/form-data)
       await axios.patch(`${API_URL}${id}/`, formData, {
         headers: {
           ...getAuthHeaders().headers,
@@ -171,6 +168,22 @@ const PaymentStatus = () => {
     setEditingId(null);
     setCurrentEditData({});
     setEditReceiptFile(null);
+  };
+
+  // 👇 CHANGE 3: Helper function to fetch client details from Leads API
+  const fetchClientDetails = async (companyName) => {
+    try {
+      const response = await axios.get(`${LEADS_API_URL}?search=${companyName}`, getAuthHeaders());
+      // Agar lead mili
+      if (response.data.results && response.data.results.length > 0) {
+        const lead = response.data.results[0]; 
+        return { name: lead.name, phone: lead.contact };
+      }
+      return null;
+    } catch (error) {
+      console.error("Fetch error:", error);
+      return null;
+    }
   };
 
   const renderCell = (p, field, type = "text") => {
@@ -213,22 +226,62 @@ const PaymentStatus = () => {
     return <span style={displayStyle}>{displayValue}</span>;
   };
 
-  const handleGoThroughClick = (payment) => {
+  // 👇 CHANGE 4: Updated Go Through logic to auto-fetch details
+  const handleGoThroughClick = async (payment) => {
     setSelectedPaymentId(payment.id);
+    
+    // Pehle modal khol do
     setModalData({
       company_name: payment.company,
       task_name: "",
-      client_name: "",
+      client_name: "Searching...", 
+      client_phone: "",
       client_id: "",
       gem_id: "",
       gem_password: "",
       priority: "Medium",
     });
     setShowModal(true);
+
+    // Background me number dhoondo
+    const clientInfo = await fetchClientDetails(payment.company);
+    
+    if (clientInfo) {
+        // Agar mil gaya to update kar do
+        setModalData(prev => ({
+            ...prev,
+            client_name: clientInfo.name,
+            client_phone: clientInfo.phone
+        }));
+        toast.success("Client Details Found! ✅");
+    } else {
+        setModalData(prev => ({ ...prev, client_name: "Not Found" }));
+        toast.error("Lead nahi mili, number khud daalna padega.");
+    }
   };
 
-  const handleCreateTaskWhatsApp = () => {
-    window.open("https://web.whatsapp.com/", "_blank");
+  // 👇 CHANGE 5: Updated Create Group logic to hit local bot server
+  const handleCreateTaskWhatsApp = async () => {
+    if (!modalData.client_phone) {
+        toast.error("Phone Number nahi hai!");
+        return;
+    }
+
+    const payload = {
+        client_name: modalData.client_name,
+        client_phone: modalData.client_phone,
+        company_name: modalData.company_name
+    };
+
+    const toastId = toast.loading("Bot Starting...");
+
+    try {
+        // 👇 Local Laptop Server call
+        await axios.post('http://localhost:5000/create-group', payload);
+        toast.success("Command Sent! Chrome check kar.", { id: toastId });
+    } catch (error) {
+        toast.error("Failed! Kya 'bot_server' chal raha hai?", { id: toastId });
+    }
   };
 
   const handleSubmitToTask = async () => {
@@ -317,7 +370,6 @@ const PaymentStatus = () => {
   const handleExport = () => {
     if (payments.length === 0) return toast.error("No data to export!");
 
-    // 👇👇 UPDATE: Added S.No to export data
     const exportData = payments.map((p) => ({
       "S.No": p.sno || "-",
       Company: p.company,
@@ -331,7 +383,6 @@ const PaymentStatus = () => {
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportData);
-    // 👇 UPDATE: Added width for S.No column
     ws["!cols"] = [
       { wch: 10 },
       { wch: 25 },
@@ -620,7 +671,6 @@ const PaymentStatus = () => {
           <table style={styles.table}>
             <thead>
               <tr>
-                {/* 👇👇👇 UPDATED: S.No added as first column */}
                 <th style={styles.th}>S.No</th>
                 <th style={styles.th}>Company Name</th>
                 <th style={styles.th}>Sales Order No.</th>
@@ -637,7 +687,6 @@ const PaymentStatus = () => {
               {/* Security Check: Input Row Hide for Tech */}
               {!isReadOnly && (
                 <tr style={{ background: "#2a2a2a" }}>
-                  {/* 👇👇👇 ADDED: Placeholder cell for S.No in input row */}
                   <td style={styles.td}>
                     <span style={{ color: "#666" }}>-</span>
                   </td>
@@ -710,7 +759,6 @@ const PaymentStatus = () => {
                     />
                   </td>
 
-                  {/* 📸 ACTION COLUMN WITH UPLOAD BUTTON (NEW PAYMENT) */}
                   <td style={{ ...styles.td, textAlign: "center" }}>
                     <input
                       type="file"
@@ -750,7 +798,6 @@ const PaymentStatus = () => {
 
               {payments.map((p) => (
                 <tr key={p.id}>
-                  {/* 👇👇👇 ADDED: S.No Display Here */}
                   <td style={{ ...styles.td, color: "#bbb" }}>
                     {p.sno || "-"}
                   </td>
@@ -771,7 +818,6 @@ const PaymentStatus = () => {
                   <td style={styles.td}>{renderCell(p, "invoice")}</td>
                   <td style={styles.td}>{renderCell(p, "remark")}</td>
 
-                  {/* 👇👇👇 UPDATED RECEIPT COLUMN LOGIC 👇👇👇 */}
                   <td style={{ ...styles.td, textAlign: "center" }}>
                     {p.id === editingId ? (
                       // EDIT MODE: Show Upload Button
@@ -801,7 +847,7 @@ const PaymentStatus = () => {
                           {editReceiptFile ? "File Selected" : "📷 Upload New"}
                         </label>
                       </>
-                    ) : // VIEW MODE: Show Eye Icon or Dash
+                    ) : 
                     p.receipt_image || p.receipt ? (
                       <button
                         onClick={() => setBottomPreview(p)}
@@ -826,7 +872,6 @@ const PaymentStatus = () => {
                       <span style={{ color: "#444", fontSize: "12px" }}>-</span>
                     )}
                   </td>
-                  {/* 👆👆👆 END UPDATE 👆👆👆 */}
 
                   <td style={styles.td}>
                     {p.id === editingId ? (
@@ -943,6 +988,18 @@ const PaymentStatus = () => {
                   readOnly
                 />
               </div>
+
+            {/* 👇 CHANGE 6: Added Client Name & Phone display below Company Name */}
+            <div style={{display:'flex', gap:'10px', marginBottom: '15px'}}>
+                <div style={{flex:1}}>
+                    <label style={{color:'#bbb', fontSize:'12px'}}>Client Name</label>
+                    <input value={modalData.client_name} readOnly style={{...styles.input, color: '#00ffcc'}} />
+                </div>
+                <div style={{flex:1}}>
+                    <label style={{color:'#bbb', fontSize:'12px'}}>Phone</label>
+                    <input value={modalData.client_phone} readOnly style={{...styles.input, color: '#00ffcc'}} />
+                </div>
+            </div>
 
               <div style={{ marginBottom: "15px" }}>
                 <label
