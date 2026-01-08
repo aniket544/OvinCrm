@@ -367,7 +367,7 @@ const LeadManager = () => {
     }
     return { headers: { Authorization: `Bearer ${token}` } };
   };
-}
+
   // --- STATE ---
   const [leads, setLeads] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -425,6 +425,7 @@ const LeadManager = () => {
     "L1",
     "TRAINING GEM",
   ];
+}
 
   // 🟢 DEBOUNCE EFFECT FOR SEARCH
   useEffect(() => {
