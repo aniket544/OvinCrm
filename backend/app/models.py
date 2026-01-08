@@ -12,6 +12,10 @@ class Lead(models.Model):
     contact = models.CharField(max_length=50, blank=True)
     email = models.EmailField(blank=True)
     address = models.TextField(blank=True, null=True) 
+    
+    # 🆕 NEW FIELD ADDED HERE 👇
+    nature_of_business = models.CharField(max_length=200, blank=True, null=True)
+
     note = models.TextField(blank=True)
     purpose = models.CharField(max_length=200, blank=True)
     status = models.CharField(max_length=50, default="New")
