@@ -396,6 +396,7 @@ const LeadManager = () => {
     contact: "",
     email: "",
     address: "",
+    nature_of_business : "",
     note: "",
     purpose: "",
     status: "New",
@@ -483,6 +484,18 @@ const LeadManager = () => {
       setIsLoading(false);
     }
   };
+
+  const handleEditClick = (lead) => {
+    setEditingId(lead.id);
+    setNewLead({
+      ...lead,
+      date: lead.date ? lead.date.slice(0, 16) : getCurrentDateTime(),
+      sno: lead.sno || "",
+      note: lead.note || "",
+      address: lead.address || "",
+      nature_of_business: lead.nature_of_business || "", // 🆕 Ye line add karni hai
+    });
+
 
   // --- BULK DELETE LOGIC ---
   const handleCheckboxChange = (id) => {
@@ -940,6 +953,7 @@ const LeadManager = () => {
       Contact: lead.contact,
       Email: lead.email,
       Address: lead.address,
+      Nature_of_Business: lead.nature_of_business,
       Status: lead.status,
       Purpose: lead.purpose,
       Note: lead.note,
@@ -1256,6 +1270,7 @@ const LeadManager = () => {
               <th style={styles.th}>Contact</th>
               <th style={styles.th}>Email</th>
               <th style={styles.th}>Address</th>
+              <th style={styles.th}>Nature of Business</th>
               <th style={styles.th}>Note</th>
               <th style={styles.th}>Purpose</th>
               <th style={styles.th}>Status</th>
@@ -1338,6 +1353,16 @@ const LeadManager = () => {
                     style={styles.input}
                   />
                 </td>
+                <td style={styles.td}>
+  <input
+    type="text"
+    name="nature_of_business"
+    value={newLead.nature_of_business}
+    onChange={handleInputChange}
+    placeholder="Business Nature"
+    style={styles.input}
+  />
+</td>
                 <td style={styles.td}>
                   <input
                     type="text"
@@ -1433,6 +1458,7 @@ const LeadManager = () => {
                   </td>
                   <td style={styles.td}>{l.email}</td>
                   <td style={styles.td}>{l.address}</td>
+                  <td style={styles.td}>{l.nature_of_business}</td>
                   <td style={styles.td}>{l.note}</td>
                   <td style={styles.td}>{l.purpose}</td>
                   <td style={styles.td}>
