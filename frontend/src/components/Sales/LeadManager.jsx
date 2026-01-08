@@ -367,7 +367,7 @@ const LeadManager = () => {
     }
     return { headers: { Authorization: `Bearer ${token}` } };
   };
-
+}
   // --- STATE ---
   const [leads, setLeads] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -1636,6 +1636,4 @@ const LeadManager = () => {
     </div>
   );
 };
-
 export default LeadManager;
-    
